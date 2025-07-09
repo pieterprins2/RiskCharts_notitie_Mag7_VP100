@@ -291,8 +291,6 @@ Ter illustratie hieronder het gewicht van cash en obligaties in de VP100. In de 
 
 ```
 
-
-
 ### Attributie van het resultaat RD
 Hieronder het resultaat RD per jaar.
 
@@ -392,7 +390,7 @@ all_prices_eur_long |>
   geom_col(position = position_dodge()) + 
   scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
   theme_minimal() + 
-  scale_y_continuous(labels = percent_format(), limits = c(-1, 10)) +
+  scale_y_continuous(labels = percent_format(), limits = c(-1, 10), sec.axis = dup_axis()) +
   geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
   labs(x = "", y = "",
        title = "price performance in euro's, twee periodes, Mag7 en MSDEWIN") +
