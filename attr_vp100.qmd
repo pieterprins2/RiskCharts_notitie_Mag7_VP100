@@ -36,6 +36,8 @@ library(paletteer)
 library(rsconnect)
 
 load("RiRe.RData")
+
+rsconnect::writeManifest()
 ```
 
 
