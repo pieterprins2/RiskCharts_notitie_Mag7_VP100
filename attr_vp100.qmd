@@ -1,0 +1,435 @@
+---
+title: "VP100: “voldoende spreiding “vs. “de index bijhouden”"
+format: 
+  html:
+    embed-resources: true  
+    toc: true
+    code-fold: true
+editor: source
+
+execute: 
+  echo: false
+  warning: false
+---
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+#library(quantmod)
+library(png)
+#for charting
+library(tibbletime) #rollify
+library(slider) #rolling statistics
+library(tidyquant) # xts, zoo, lubridate, performance_analytics, quantmod, TTR
+library(tidyverse) # ggplot2, purrr, dplyr, tidyr, readr, tibble, stringr
+library(lubridate) #datumfuncties
+library(readxl) # xlsx inlezen
+library(RColorBrewer) #kleuren
+library(directlabels) #voor labels aan uiteinde van lijnen, geom_dl
+library(ggrepel) #label repel
+library(scales) #label_percent
+library(broom) #tidy
+library(scales) #pretty breaks
+library(quarto)
+library(gt) #tabellen
+library(gtExtras) #tabellen
+library(gridExtra) #meerdere grafieken op een pagina
+library(paletteer)
+library(rsconnect)
+
+load("RiRe.RData")
+```
+
+
+```{r waarde-ontwikkeling_VP100_en_msdewin}
+#| warning: false
+#| column: page
+
+data <- 
+  attr_tabellen_RDRM_simple |> 
+  filter(portfolio == "VP100") |> 
+  select(date, VP100 = pf_rt_cum, MSDEWIN = BM_rt_cum) |> 
+  pivot_longer(-date, values_to = "perf", names_to = "pf_bm") |> 
+  mutate(pf_bm = factor(pf_bm, levels = c("VP100", "MSDEWIN"))) 
+
+#voor in tekst
+perf_VP100 <- 
+  data |> filter(date == lastdate, pf_bm == "VP100") |> pull(perf)
+perf_MSDEWIN <- 
+  data |> filter(date == lastdate, pf_bm == "MSDEWIN") |> pull(perf)
+
+```
+
+### Waarde-ontwikkeling VP100 en MSDEWIN
+De VP100 laat een mooie waarde-ontwikkeling zien. Vanaf de start in juni 2017 tot juni 2025 een bruto performance van `r str_c(round(perf_VP100*100,1), "%")`. De performance van de MSDEWIN in die periode is `r str_c(round(perf_MSDEWIN*100,1), "%")`. Er is eerst sprake van outperformance, daarna van underperformance.
+
+```{r waarde-ontwikkeling_VP100_en_msdewin_grafiek}
+#| warning: false
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+
+data |> 
+  ggplot(aes(x = date, y = perf, col = pf_bm)) +
+  geom_line(linewidth = 1.5) +
+  scale_color_manual(values = c(VP100green, bmgray)) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+  labs(x = "", y = "",
+       title = str_c("VP100 vs. MSDEWIN van ",  
+                          day(start_date_vp_vf),"-", month(start_date_vp_vf, label = TRUE), "-", year(start_date_vp_vf), " t/m ",
+                          day(lastdate),"-", month(lastdate, label = TRUE), "-", year(lastdate))) +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5, face = "bold")) 
+
+```
+
+
+Over de hele periode is sprake van een underperformance ("geometrisch" berekend) van `r str_c(-round(100*((1 + perf_VP100)/(1+perf_MSDEWIN) - 1), 1), "%")`.
+
+### Voldoende spreiding (lage standaarddeviatie)
+Hoeveel individuele aandelen zijn er nodig voor een “goed gespreide portefeuille”? Het antwoord is enkele tientallen. Meer dan dat voegt weinig extra spreiding toe.
+
+In de volgende figuur de volatiliteit (standaarddeviatie) van de portefeuille vs. die van de index.
+
+```{r sd_VP100_en_BM}
+#| warning: false
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+ 
+drie_datums <- c("2017-06-30", "2022-12-31", "2025-06-30")
+
+data_sd_hele_periode <- 
+  attr_tabellen_RDRM_simple |> 
+  filter(portfolio == "VP100") |> 
+  select(date, pf_rt, pf_rt_RD) |> 
+  left_join(MSDEWIN_trr, by = c("date")) |> 
+  filter(date > drie_datums[1]) |> 
+  pivot_longer(names_to = "pf_BM", cols = c(pf_rt, pf_rt_RD, MSDEWIN_trr)) |>
+  group_by(pf_BM) |> 
+  reframe(sd = sd(value, na.rm = TRUE) * sqrt(12)) |> 
+  mutate(pf_BM = case_when(pf_BM == "MSDEWIN_trr" ~ "MSDEWIN", 
+                            pf_BM == "pf_rt" ~ "VP100",
+                            pf_BM == "pf_rt_RD" ~ "VP100 exclusief cash"),
+         pf_BM = factor(pf_BM, levels = c("VP100", "VP100 exclusief cash", "MSDEWIN"))) 
+
+# data_sd_hele_periode |>
+#   ggplot(aes(x = pf_BM, y = sd, fill = pf_BM, alpha = pf_BM)) + 
+#   geom_col() + 
+#   scale_fill_manual(values = c(VP100green, VP100green, bmgray)) +
+#   scale_alpha_manual(values = c(1, 0.5, 1)) +
+#   scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+#   geom_text(aes(label = str_c(round(sd * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_stack(vjust = 0.5)) + 
+#   labs(x = "", y = "",
+#        title = "standaarddeviatie jul-2017 - jun-2025, VP100, portefeuille in- en exclusief cash vs. MSDEWIN") +
+#   charts_custom_theme +
+#   theme_minimal() +
+#   theme(legend.position = "none",
+#         legend.title = element_blank(),
+#         plot.title = element_text(hjust = 0.5, face = "bold"))       
+```
+
+```{r sd_VP100_en_BM2}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+#| warning: false
+
+data_sd_twee_periodes <- 
+  attr_tabellen_RDRM_simple |> 
+  filter(portfolio == "VP100") |> 
+  select(date, pf_rt, pf_rt_RD) |> 
+  left_join(MSDEWIN_trr, by = c("date")) |> 
+  filter(date > drie_datums[1]) |> 
+  mutate(periode = ifelse(date <= "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"), 
+         periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"))) |> 
+  pivot_longer(names_to = "pf_BM", cols = c(pf_rt, pf_rt_RD, MSDEWIN_trr)) |>
+  group_by(pf_BM, periode) |> 
+  reframe(sd = sd(value, na.rm = TRUE) * sqrt(12)) |> 
+    mutate(pf_BM = case_when(pf_BM == "MSDEWIN_trr" ~ "MSDEWIN", 
+                            pf_BM == "pf_rt" ~ "VP100",
+                            pf_BM == "pf_rt_RD" ~ "VP100 exclusief cash"),
+         pf_BM = factor(pf_BM, levels = c("VP100", "VP100 exclusief cash", "MSDEWIN")))
+
+data_sd_hele_periode <- 
+  data_sd_hele_periode |> 
+  mutate(periode = "hele periode") |> 
+  select(pf_BM, periode, sd)
+
+data_sd_twee_periodes |> 
+  bind_rows(data_sd_hele_periode) |>
+  mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode"))) |> 
+  ggplot(aes(x = periode, y = sd, fill = pf_BM, alpha = pf_BM)) + 
+  geom_col(position = position_dodge()) + 
+  scale_fill_manual(values = c(VP100green, VP100green, bmgray)) +
+  scale_alpha_manual(values = c(1, 0.5, 1)) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+  labs(x = "", y = "",
+       title = "standaarddeviatie in twee periodes, VP100, portefeuille in- en exclusief cash vs. MSDEWIN") +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5, face = "bold"))       
+
+
+  
+
+```
+
+De VP100 heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille “goed gespreid”.
+
+Dat de volatiliteit iets lager was dan de benchmark komt doordat de portefeuille niet vol belegd was, vooral in de eerste periode.
+
+### De index bijhouden (lage tracking error)
+In de onderstaande figuur staan de verschillen per maand van de performance van de VP100 en die van de MSDEWIN. Deze cijfers betreffen de hele portefeuille, dus inclusief cash.
+
+```{r verschillen_per_maand}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+#| 
+pf_bm_returns_si |> 
+  filter(date >= start_date_vp_vf,
+         date <= lastdate,
+         portfolio %in% "VP100") |> 
+  mutate(diff = pf_rt - BM_rt) |> 
+  ggplot(aes(x=date, fill = color)) +
+  geom_col(aes(y=diff)) +
+  scale_fill_identity() + 
+  scale_x_date(breaks = datum_breaks(start_date = start_date_vp_vf, end_date = lastdate)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), sec.axis = dup_axis()) +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  ggtitle(str_c("performance verschillen met de benchmark, VP100,",
+         " van ",  
+                          day(start_date_vp_vf),"-", month(start_date_vp_vf, label = TRUE), "-", year(start_date_vp_vf), " t/m ",
+                          day(lastdate),"-", month(lastdate, label = TRUE), "-", year(lastdate))) +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+```
+
+De (ex-post) tracking error is de standaarddeviatie daarvan op jaarbasis. Dat is 3,7%. De ex-ante tracking error (gebruik makend van huidige gewichten en een variantie-covariantiematrix) is 4%. Er is (als je veronderstelt dat rendementen normaal verdeeld zijn) een kans van ruwweg 68% dat de out- of underperformance op jaarbasis kleiner is dan dat en de kans is 95% is dat de uitkomst binnen + en – 2x dit getal valt.
+
+### Attributie van het verschil met de benchmark
+In de volgende figuur kun je zien dat per saldo de asset allocatie de grootste negatieve factor was (de portefeuille is niet vol belegd geweest terwijl de markt is gestegen. Het resultaat RD is het verschil tussen de performance van het RD-deel van de portefeuille en de MSDEWIN. In de eerste periode was dit sterk positief en in de tweede periode sterk negatief.
+
+```{r}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+
+attr_tabellen_RDRM_simple |> 
+  filter(portfolio == "VP100") |> 
+  select(date, totaal = er, `asset allocatie` = all_ff, `resultaat RD` = sel_ff_RD) |> 
+  add_row(date = as.Date("2017-06-30"), totaal = 0, `asset allocatie` = 0, `resultaat RD` = 0) |>
+  arrange(date) |>
+  mutate(totaal = cumprod(totaal + 1),
+         `asset allocatie` = cumprod(`asset allocatie` + 1), 
+         `resultaat RD` = cumprod(`resultaat RD` + 1)) |> 
+  filter(date %in% drie_datums) |> 
+  select(date, totaal, `asset allocatie`, `resultaat RD`) |> 
+  pivot_longer(cols = -date, names_to = "type", values_to = "index") |> 
+  group_by(type) |>
+#
+    unique() |> 
+ #
+   mutate(resultaat = index/lag(index) - 1,
+         periode = c(NA, "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025")) |> 
+  filter(!is.na(resultaat)) |> 
+  select(-index, -date) |> 
+  pivot_wider(names_from = periode, values_from = resultaat) |> 
+  mutate('hele periode' = (1 + `jul-2017 t/m dec-2022`)*(1 + `jan-2023 t/m jun-2025`) - 1) |> 
+  pivot_longer(cols = -type, names_to = "periode", values_to = "resultaat") |> 
+  mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode")),
+         type = factor(type, levels = c("asset allocatie", "resultaat RD", "totaal"))) |>
+  ggplot(aes(x = periode, y = resultaat, fill = type)) +
+  geom_col(position = position_dodge()) +
+  scale_fill_manual(values = c(euroblue, usred, VP100green)) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(-0.2, 0.2)) +
+  geom_text(aes(label = str_c(round(resultaat * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
+  theme_minimal() +
+  labs(x = "", y = "",
+       title = "performance-attributie VP100,  asset allocatie, resultaat RD en totaal, \ntwee perioden en hele periode sinds juni 2017
+",
+       caption = NULL) +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),#, size = 25),
+        legend.position = "bottom",
+        legend.title = element_blank())
+  
+```
+
+Ter illustratie hieronder het gewicht van cash en obligaties in de VP100. In de eerste periode was er een relatief hoog gewicht in cash en obligaties, in de tweede periode is dat fors gedaald. De portefeuille is dus niet vol belegd geweest.
+
+```{r}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+  asset_weights_pfs |> 
+    filter(!asset == "Aandelen", portfolio %in% "VP100", date >= start_date_vp_vf, date <= lastdate) |>
+    mutate(aset = factor(asset, levels = c("Obligaties", "Cash")) ) |>
+  ggplot() +
+    geom_area(aes(x = date, y = wt, fill = asset, col = asset), alpha = 0.3, position = "stack", ) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1), sec.axis = dup_axis()) +
+    #scale_x_date(date_labels = "%b-%y", breaks = datum_breaks(start_date_vp_vf, lastdate)) +
+    scale_color_manual(values = rev(c(bondspurple, cashblue)),
+                      guide = guide_legend(reverse = FALSE)) +
+    scale_fill_manual(values = rev(c(bondspurple, cashblue)),
+                      guide = guide_legend(reverse = FALSE)) +
+    labs(x = "", y = "") +
+    ggtitle(str_c("cash en obligaties in VP100, van ",  
+                          day(start_date_vp_vf), "-", month(start_date_vp_vf, label = TRUE), "-", year(start_date_vp_vf), " t/m ",
+                          day(lastdate), "-", month(lastdate, label = TRUE), "-", year(lastdate))) +
+    charts_custom_theme +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),#, size = 25),
+        legend.position = "bottom",
+        legend.title = element_blank())
+
+```
+
+
+
+### Attributie van het resultaat RD
+Hieronder het resultaat RD per jaar.
+
+```{r resultaat_vp_rd_per_jaar}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+#| 
+attr_tabellen_RDRM_simple |> filter(portfolio == "VP100") |> 
+  select(date, sel_ff_RD) |> 
+  mutate(sel_ff_RD_index = cumprod(sel_ff_RD + 1), maand = month(date)) |> 
+  filter(maand %in% c(6,12)) |> 
+  mutate(n= row_number()) |> 
+  filter(maand == 12 | n %in% c(1, 17)) |> 
+  mutate(sel_ff_RD_periode = sel_ff_RD_index/lag(sel_ff_RD_index)- 1) |> 
+  filter(!is.na(sel_ff_RD_periode)) |> 
+  select(date, sel_ff_RD =sel_ff_RD_periode) |> 
+  mutate(jaar = year(date))|> 
+  ggplot(aes(x = jaar, y = sel_ff_RD)) +
+  geom_col(fill = usred) +
+  theme_minimal() +
+  labs(x="", y="",
+       title = "resultaat RD VP100 per jaar, van 30-jun-2017 t/m 30-jun-2025") +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(-0.1, 0.1)) +
+  geom_text(aes(label = str_c(round(sel_ff_RD * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
+  charts_custom_theme +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+```
+
+Het reslutaat RD is uit te splitsen in sectorallocatie en aandelenselectie. De sectorallocatie is de bijdrage van de verdeling over de verschillende sectoren, de aandelenselectie is het resultaat van de keuze van individuele aandelen binnen die sectoren.
+
+```{r}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+
+attr_tabellen_pfs_sector_Bs_Ae_Se |> 
+  filter(portfolio == "VP100") |> 
+  select(date, sectorallocatie = All_ff, aandelenselectie = Sel_ff) |> 
+  add_row(date = as.Date("2017-06-30"), sectorallocatie = 0, aandelenselectie = 0) |>
+  arrange(date) |>
+  mutate(sectorallocatie = cumprod(sectorallocatie + 1), 
+         aandelenselectie = cumprod(aandelenselectie + 1)) |> 
+  filter(date %in% drie_datums) |> 
+  select(date, sectorallocatie, aandelenselectie) |> 
+  pivot_longer(cols = -date, names_to = "type", values_to = "index") |> 
+  group_by(type) |>
+  mutate(resultaat = index/lag(index) - 1,
+         periode = c(NA, "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025")) |> 
+  filter(!is.na(resultaat)) |> 
+  select(-index, -date) |> 
+  pivot_wider(names_from = periode, values_from = resultaat) |> 
+  mutate('hele periode' = (1 + `jul-2017 t/m dec-2022`)*(1 + `jan-2023 t/m jun-2025`) - 1) |> 
+  pivot_longer(cols = -type, names_to = "periode", values_to = "resultaat") |> 
+  mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode")),
+         type = factor(type, levels = c("sectorallocatie", "aandelenselectie"))) |>
+  ggplot(aes(x = periode, y = resultaat, fill = type)) +
+  geom_col(position = position_dodge(), alpha = 0.5) +
+  scale_fill_manual(values = c(euroblue, usred)) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+  geom_text(aes(label = str_c(round(resultaat * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) +   
+  theme_minimal() +
+  labs(x = "", y = "",
+       title = "performance-attributie resultaat RD VP100, sectorallocatie en aandelenselectie, \ntwee perioden en sinds juni 2017
+",
+       caption = NULL) +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),#, size = 25),
+        legend.position = "bottom",
+        legend.title = element_blank())
+```
+
+De sectorallocatie was in de eerste periode positief en in de tweede periode negatief. De aandelenselectie was in de eerste periode sterk positief, maar in de tweede periode sterk negatief. De aandelenselectie is de grootste bron van afwijking tussen de VP100 en de benchmark.
+
+### Mag7 scenario
+Een "Mag7 scenario" is een scenario waarin een beperkt aantal aandelen zorgt voor praktisch alle waardestijging van de index. Bij een beperkt aantal regels in een individuele-aandelenportefeuille bestaat een grote kans dat je een of meerdere van deze Mag7 niet hebt. Dan is de portefeuille weliswaar “goed gespreid”, maar je blijft achter bij de index.
+
+Ter illustratie hieronder de performance van Mag7 aandelen en de MSDEWIN in beide periodes.
+
+```{r mag_7_2_periodes}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+
+all_prices_eur_long |> 
+  filter(ticker %in% c(grote_tickers$ticker, "MSDEWIN")) |> 
+  filter(date %in% drie_datums) |> 
+  arrange(ticker, date) |> group_by(ticker) |> 
+  mutate(perf_eur = price_eur/lag(price_eur)-1) |> 
+  mutate(periode = ifelse(date == "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"), 
+         periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"))) |> 
+  filter(!is.na(perf_eur)) |> 
+  select(-price_eur) |> 
+  ggplot(aes(x = ticker, y = perf_eur, group = periode, fill = periode)) + 
+  geom_col(position = position_dodge()) + 
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  theme_minimal() + 
+  scale_y_continuous(labels = percent_format(), limits = c(-1, 10)) +
+  geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
+  labs(x = "", y = "",
+       title = "price performance in euro's, twee periodes, Mag7 en MSDEWIN") +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+    
+```
+
+Het positieve aandelenselectieresultaat in de eerste periode komt van een aantal namen die het goed deden in die periode (DSM, Visa, United Health, Pfizer, WTCH). Mag7 namen die het goed deden en ook in portefeuille waren zijn Apple, Google, direct en via WTCH. Nvidia en Tesla waren niet in portefeuille, maar met name Nvidia had ook nog geen groot gewicht in de index.
+
+Het negatieve aandelenselectieresultaat in de tweede periode komt door namen in portefeuille die het slecht deden (Intel, Kering, Pfizer, en United Health) en door het (nog) niet hebben van een paar Mag7’s (Nvidia, Meta, Amazon en Tesla). Nvidia en Tesla zijn pas eind 2024 opgenomen in de portefeuille. 
+
+De portefeuille had geen exposure naar Nvidia, Meta, Amazon en Tesla, mede omdat deze ook niet in de WTCH voorkomen.
+
+### Meer individuele aandelen
+Om in zo’n scenario, ervan uitgaande dat je van tevoren niet weet welke die Mag7 zijn, de index bij te houden (een lage tracking error) zul je er niet 15-30 moeten hebben maar eerder honderden. Simulatie over een lange periode, universum is ACWI.
+
+![Bron: "FOMO in equity markets? Concentration risk in (sustainable) investing", Andreas Brøgger, Joren Koëter, and Mathijs van Dijk, June 2025, pagina 37, Panel D](Picture1.png){fig-align="center" width="60%"}
+
+Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen. 
+
+### Belangrijkste punten
+
+- Goede performance
+- De portefeuille is goed gespreid, met een volatiliteit dicht bij die van de benchmark.
+- Ten opzichte van de benchmark is er sprake van een underperformance.
+  - De belangrijkste oorzaak is dat de portefeuille niet vol belegd was.
+  - Daarnaast zorgt de aandelenselectie voor de grootste tussentijdse verschillen.
+- Als
+  - “het bijhouden van de index” behoort tot de doelstellingen van de portefeuille en
+  - je rekening wilt houden met een "Mag7 scenario",
+  - dan moeten er meer individuele aandelen en/of trackers opgenomen worden.
+
+
+
+```{r}
+
+```
+
