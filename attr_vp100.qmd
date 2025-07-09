@@ -262,7 +262,7 @@ attr_tabellen_RDRM_simple |>
   
 ```
 
-Ter illustratie hieronder het gewicht van cash en obligaties in de VP100. In de eerste periode was er een relatief hoog gewicht in cash en obligaties, in de tweede periode is dat fors gedaald. De portefeuille is dus niet vol belegd geweest.
+Ter illustratie hieronder het gewicht van cash en obligaties in de VP100. In de eerste periode was er een relatief hoog gewicht in cash en obligaties. De portefeuille is dus niet steeds vol belegd geweest.
 
 ```{r}
 #| column: page
@@ -351,12 +351,11 @@ attr_tabellen_pfs_sector_Bs_Ae_Se |>
   ggplot(aes(x = periode, y = resultaat, fill = type)) +
   geom_col(position = position_dodge(), alpha = 0.5) +
   scale_fill_manual(values = c(euroblue, usred)) +
-  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(-0.15, 0.15)) +
   geom_text(aes(label = str_c(round(resultaat * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) +   
   theme_minimal() +
   labs(x = "", y = "",
-       title = "performance-attributie resultaat RD VP100, sectorallocatie en aandelenselectie, \ntwee perioden en sinds juni 2017
-",
+       title = "performance-attributie resultaat RD VP100, sectorallocatie en aandelenselectie, \ntwee perioden en sinds juni 2017",
        caption = NULL) +
   charts_custom_theme +
   theme_minimal() +
