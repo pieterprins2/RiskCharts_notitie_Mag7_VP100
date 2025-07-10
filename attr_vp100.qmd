@@ -61,7 +61,7 @@ perf_MSDEWIN <-
 ```
 
 ### Waarde-ontwikkeling VP100 en MSDEWIN
-De VP100 laat een mooie waarde-ontwikkeling zien. Vanaf de start in juni 2017 tot juni 2025 een bruto performance van `r str_c(round(perf_VP100*100,1), "%")`. De performance van de MSDEWIN in die periode is `r str_c(round(perf_MSDEWIN*100,1), "%")`. Er is eerst sprake van outperformance, daarna van underperformance.
+De VP100 laat een mooie waarde-ontwikkeling zien. Vanaf de start in juni 2017 t/m juni 2025 een bruto performance van `r str_c(round(perf_VP100*100,1), "%")`. De performance van de MSDEWIN in die periode is `r str_c(round(perf_MSDEWIN*100,1), "%")`. Er is eerst sprake van outperformance, daarna van underperformance.
 
 ```{r waarde-ontwikkeling_VP100_en_msdewin_grafiek}
 #| warning: false
@@ -87,7 +87,7 @@ data |>
 ```
 
 
-Over de hele periode is sprake van een underperformance ("geometrisch" berekend) van `r str_c(-round(100*((1 + perf_VP100)/(1+perf_MSDEWIN) - 1), 1), "%")`.
+Over de hele periode is sprake van een underperformance ("geometrisch" berekend) van `r str_c("(1 + ", round(100*(perf_VP100),1), "%)/(1 + ", round(100*(perf_MSDEWIN),1), "%) - 1 = ", round(100*((1 + perf_VP100)/(1+perf_MSDEWIN) - 1), 1), "%")`.
 
 ### Voldoende spreiding (lage standaarddeviatie)
 Hoeveel individuele aandelen zijn er nodig voor een “goed gespreide portefeuille”? Het antwoord is enkele tientallen. Meer dan dat voegt weinig extra spreiding toe.
@@ -115,21 +115,7 @@ data_sd_hele_periode <-
                             pf_BM == "pf_rt" ~ "VP100",
                             pf_BM == "pf_rt_RD" ~ "VP100 exclusief cash"),
          pf_BM = factor(pf_BM, levels = c("VP100", "VP100 exclusief cash", "MSDEWIN"))) 
-
-# data_sd_hele_periode |>
-#   ggplot(aes(x = pf_BM, y = sd, fill = pf_BM, alpha = pf_BM)) + 
-#   geom_col() + 
-#   scale_fill_manual(values = c(VP100green, VP100green, bmgray)) +
-#   scale_alpha_manual(values = c(1, 0.5, 1)) +
-#   scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
-#   geom_text(aes(label = str_c(round(sd * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_stack(vjust = 0.5)) + 
-#   labs(x = "", y = "",
-#        title = "standaarddeviatie jul-2017 - jun-2025, VP100, portefeuille in- en exclusief cash vs. MSDEWIN") +
-#   charts_custom_theme +
-#   theme_minimal() +
-#   theme(legend.position = "none",
-#         legend.title = element_blank(),
-#         plot.title = element_text(hjust = 0.5, face = "bold"))       
+    
 ```
 
 ```{r sd_VP100_en_BM2}
@@ -166,21 +152,23 @@ data_sd_twee_periodes |>
   geom_col(position = position_dodge()) + 
   scale_fill_manual(values = c(VP100green, VP100green, bmgray)) +
   scale_alpha_manual(values = c(1, 0.5, 1)) +
-  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.2)) +
+  geom_text(aes(label = str_c(round(sd * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) +
   labs(x = "", y = "",
        title = "standaarddeviatie in twee periodes, VP100, portefeuille in- en exclusief cash vs. MSDEWIN") +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
         legend.title = element_blank(),
-        plot.title = element_text(hjust = 0.5, face = "bold"))       
+        plot.title = element_text(hjust = 0.5, face = "bold")) +
+  guides(alpha = "none")      
 
 
   
 
 ```
 
-De VP100 heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille “goed gespreid”.
+De VP100 heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille goed gespreid.
 
 Dat de volatiliteit iets lager was dan de benchmark komt doordat de portefeuille niet vol belegd was, vooral in de eerste periode.
 
@@ -214,8 +202,8 @@ pf_bm_returns_si |>
 
 De (ex-post) tracking error is de standaarddeviatie daarvan op jaarbasis. Dat is 3,7%. De ex-ante tracking error (gebruik makend van huidige gewichten en een variantie-covariantiematrix) is 4%. Er is (als je veronderstelt dat rendementen normaal verdeeld zijn) een kans van ruwweg 68% dat de out- of underperformance op jaarbasis kleiner is dan dat en de kans is 95% is dat de uitkomst binnen + en – 2x dit getal valt.
 
-### Attributie van het verschil met de benchmark
-In de volgende figuur kun je zien dat per saldo de asset allocatie de grootste negatieve factor was (de portefeuille is niet vol belegd geweest terwijl de markt is gestegen. Het resultaat RD is het verschil tussen de performance van het RD-deel van de portefeuille en de MSDEWIN. In de eerste periode was dit sterk positief en in de tweede periode sterk negatief.
+### Verklaring van het verschil met de benchmark
+De asset allocatie leverde de grootste negatieve bijdrage. De portefeuille is niet vol belegd geweest terwijl de markt is gestegen. Het resultaat RD is het verschil tussen de performance van het in RD belegde deel van de portefeuille en de MSDEWIN. In de eerste periode was dit sterk positief en in de tweede periode sterk negatief.
 
 ```{r}
 #| column: page
@@ -262,7 +250,7 @@ attr_tabellen_RDRM_simple |>
   
 ```
 
-Ter illustratie hieronder het gewicht van cash en obligaties in de VP100. In de eerste periode was er een relatief hoog gewicht in cash en obligaties. De portefeuille is dus niet steeds vol belegd geweest.
+Ter illustratie hieronder het gewicht van cash en obligaties in de VP100.
 
 ```{r}
 #| column: page
@@ -291,7 +279,7 @@ Ter illustratie hieronder het gewicht van cash en obligaties in de VP100. In de 
 
 ```
 
-### Attributie van het resultaat RD
+### Verklaring van het resultaat RD
 Hieronder het resultaat RD per jaar.
 
 ```{r resultaat_vp_rd_per_jaar}
@@ -392,7 +380,7 @@ all_prices_eur_long |>
   scale_y_continuous(labels = percent_format(), limits = c(-1, 10), sec.axis = dup_axis()) +
   geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
   labs(x = "", y = "",
-       title = "price performance in euro's, twee periodes, Mag7 en MSDEWIN") +
+       title = "koersstijging in euro's, twee periodes, Mag7 en MSDEWIN") +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
@@ -401,6 +389,7 @@ all_prices_eur_long |>
     
 ```
 
+### Verklaring aandelenselectieresultaat
 Het positieve aandelenselectieresultaat in de eerste periode komt van een aantal namen die het goed deden in die periode (DSM, Visa, United Health, Pfizer, WTCH). Mag7 namen die het goed deden en ook in portefeuille waren zijn Apple, Google, direct en via WTCH. Nvidia en Tesla waren niet in portefeuille, maar met name Nvidia had ook nog geen groot gewicht in de index.
 
 Het negatieve aandelenselectieresultaat in de tweede periode komt door namen in portefeuille die het slecht deden (Intel, Kering, Pfizer, en United Health) en door het (nog) niet hebben van een paar Mag7’s (Nvidia, Meta, Amazon en Tesla). Nvidia en Tesla zijn pas eind 2024 opgenomen in de portefeuille. 
@@ -408,7 +397,7 @@ Het negatieve aandelenselectieresultaat in de tweede periode komt door namen in 
 De portefeuille had geen exposure naar Nvidia, Meta, Amazon en Tesla, mede omdat deze ook niet in de WTCH voorkomen.
 
 ### Meer individuele aandelen
-Om in zo’n scenario, ervan uitgaande dat je van tevoren niet weet welke die Mag7 zijn, de index bij te houden (een lage tracking error) zul je er niet 15-30 moeten hebben maar eerder honderden. Simulatie over een lange periode, universum is ACWI.
+Om in een Mag7 scenario, ervan uitgaande dat je van tevoren niet weet welke die Mag7 zijn, de index bij te houden (een lage tracking error) zul je er niet 15-30 moeten hebben maar eerder honderden. Simulatie over een lange periode, universum is ACWI.
 
 ![Bron: "FOMO in equity markets? Concentration risk in (sustainable) investing", Andreas Brøgger, Joren Koëter, and Mathijs van Dijk, June 2025, pagina 37, Panel D](Picture1.png){fig-align="center" width="60%"}
 
@@ -418,7 +407,7 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen.
 
 - Goede performance
 - De portefeuille is goed gespreid, met een volatiliteit dicht bij die van de benchmark.
-- Ten opzichte van de benchmark is er sprake van een underperformance.
+- Ten opzichte van de benchmark is er sprake van een underperformance
   - De belangrijkste oorzaak is dat de portefeuille niet vol belegd was.
   - Daarnaast zorgt de aandelenselectie voor de grootste tussentijdse verschillen.
 - Als
