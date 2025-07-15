@@ -1,5 +1,5 @@
 ---
-title: "VP100: “voldoende spreiding “vs. “de index bijhouden”"
+title: "VP100: “voldoende spreiding“ vs. “de index bijhouden”"
 format: 
   html:
     embed-resources: true  
@@ -34,6 +34,7 @@ library(gtExtras) #tabellen
 library(gridExtra) #meerdere grafieken op een pagina
 library(paletteer)
 library(rsconnect)
+library(rlang)
 
 load("RiRe.RData")
 
@@ -362,34 +363,420 @@ Ter illustratie hieronder de performance van Mag7 aandelen en de MSDEWIN in beid
 ```{r mag_7_2_periodes}
 #| column: page
 #| fig-width: 10
-#| fig-height: 3
+#| fig-height: 7
 
-all_prices_eur_long |> 
+mag7_hele_periode <-
+  all_prices_eur_long |> 
+  filter(ticker %in% c(grote_tickers$ticker, "MSDEWIN")) |> 
+  filter(date %in% c(drie_datums[1], drie_datums[3])) |> 
+  arrange(ticker, date) |> group_by(ticker) |> 
+  mutate(perf_eur = price_eur/lag(price_eur)-1) |> 
+  filter(!is.na(perf_eur)) |> 
+  mutate(periode = "hele periode") 
+
+mag7_twee_periodes <-
+  mag7_twee_periodes <-
+  all_prices_eur_long |> 
   filter(ticker %in% c(grote_tickers$ticker, "MSDEWIN")) |> 
   filter(date %in% drie_datums) |> 
   arrange(ticker, date) |> group_by(ticker) |> 
   mutate(perf_eur = price_eur/lag(price_eur)-1) |> 
-  mutate(periode = ifelse(date == "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"), 
-         periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"))) |> 
   filter(!is.na(perf_eur)) |> 
-  select(-price_eur) |> 
-  ggplot(aes(x = ticker, y = perf_eur, group = periode, fill = periode)) + 
-  geom_col(position = position_dodge()) + 
-  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
-  theme_minimal() + 
-  scale_y_continuous(labels = percent_format(), limits = c(-1, 10), sec.axis = dup_axis()) +
-  geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
+  mutate(periode = ifelse(date == "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025")) |>  
+  filter(!is.na(perf_eur))
+
+
+# mag7_twee_periodes |> bind_rows(mag7_hele_periode) |> 
+#   mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode"))) |> 
+#   select(-price_eur) |> 
+#   ggplot(aes(x = ticker, y = perf_eur, group = periode, fill = periode)) + 
+#   geom_col(position = position_dodge()) + 
+#   scale_fill_manual(values = c("#E69F00", "#56B4E9", "green")) +
+#   theme_minimal() + 
+#   scale_y_continuous(labels = percent_format(), limits = c(-1, 50), sec.axis = dup_axis()) +
+#   geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 3, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
+#   labs(x = "", y = "",
+#        title = "koersstijging in euro's, twee periodes, Mag7 en MSDEWIN") +
+#   charts_custom_theme +
+#   theme_minimal() +
+#   theme(legend.position = "bottom",
+#         legend.title = element_blank(),
+#          plot.title = element_text(hjust = 0.45, vjust = 0, face = "bold"))
+  
+all_prices_eur_long |>
+  filter(ticker %in% c(grote_tickers$ticker, "MSDEWIN")) |>
+  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW", "MSDEWIN"))) |> 
+  filter(date %in% drie_datums) |>
+  arrange(ticker, date) |> group_by(ticker) |>
+  mutate(perf_eur = price_eur/lag(price_eur)-1) |>
+  mutate(periode = ifelse(date == "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"),
+         periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"))) |>
+  filter(!is.na(perf_eur)) |>
+  select(-price_eur) |>
+  ggplot(aes(x = ticker, y = perf_eur, group = periode, fill = ticker, alpha = periode)) +
+  geom_col(position = position_dodge()) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
+  scale_alpha_manual(values = c(0.5, 1)) +
+  theme_minimal() +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 10), sec.axis = dup_axis()) +
+  geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) +
   labs(x = "", y = "",
-       title = "koersstijging in euro's, twee periodes, Mag7 en MSDEWIN") +
+       title = "koersontwikkeling in euro's, twee periodes, Mag7 en MSDEWIN") +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "none",
+        legend.title = element_blank(),
+         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold")) 
+    
+```
+```{r gewicht_tickers_in_bm_historie}
+#| column: page
+#| warning: false
+
+koersen_snapshot_date <-daily_bdh_fields_mtd |> 
+  filter(date == snapshot_date, field == "PX_LAST")
+
+wisselkoersen_snapshot_date <- 
+  daily_bdh_fields_mtd |> 
+  filter(str_starts(ticker, "EUR"), date == snapshot_date) |> 
+  mutate(ticker = str_remove(ticker, "_USD"),
+         ticker = str_sub(ticker, 4, 6)) |> 
+  rename(CRNCY = ticker) |> 
+  select(CRNCY, wisselkoers = value) |> 
+  add_row(CRNCY = "EUR", wisselkoers = 1)
+
+market_caps_eur_snapshot_date <-
+  market_caps |> 
+  left_join(currencies, by = c("ticker")) |> 
+  left_join(koersen_snapshot_date, by = c("ticker")) |> 
+  left_join(wisselkoersen_snapshot_date, by = "CRNCY") |> 
+  mutate(market_cap_eur = market_caps / wisselkoers) |> 
+  select(date, ticker, market_cap_eur) |>
+  filter(!is.na(market_cap_eur))
+
+MSDEWIN_market_cap_snapshot_date <- 
+  market_caps_eur_snapshot_date |> 
+  filter(ticker == "MSDEWIN") |> 
+  pull(market_cap_eur)
+
+SPY5_GY_market_cap_snapshot_date <-
+  market_caps_eur_snapshot_date |> 
+  filter(ticker == "SPX") |> 
+  pull(market_cap_eur)
+
+WTCH_NA_market_cap_snapshot_date <-
+  market_caps_eur_snapshot_date |> 
+  filter(ticker == "WTCH_NA") |> 
+  pull(market_cap_eur)
+
+XDWH_GY_market_cap_snapshot_date <-
+  market_caps_eur_snapshot_date |> 
+  filter(ticker == "XDWH_GY") |> 
+  pull(market_cap_eur)
+
+
+single_stock_tickers <- 
+  holdings |> 
+  filter(str_detect(type, "Stock")) |> 
+  pull(ticker)
+
+ticker_market_cap_snapshot_date <- function(ticker) {
+  market_caps_eur_snapshot_date |> 
+  filter(ticker == !!ticker, date == snapshot_date) |> 
+  pull(market_cap_eur)
+}
+
+wt_sector_in_MSDEWIN_snapshot_date <- function(sector) {
+  ticker_sector_weights_hist |> 
+  filter(ticker == "IWDA_NA", sector == !!sector, date == snapshot_date) |> 
+  pull(weight)
+}
+
+wt_IT_in_bm_snapshot_date <- ticker_sector_weights_hist |> filter(ticker == "IWDA_NA", sector == "Information Technology", date == snapshot_date) |> pull(weight)
+wt_HC_in_bm_snapshot_date <- ticker_sector_weights_hist |> filter(ticker == "IWDA_NA", sector == "Health Care", date == snapshot_date) |> pull(weight)
+
+wt_ticker_in_ETF_snapshot_date <- function(ETF = "WTCH_NA", sector = "Information Technology") {
+   market_caps_eur_snapshot_date |> 
+   left_join(holdings, by = "ticker") |>
+   filter(str_detect(type, "Stock")) |>
+   mutate(wt_ticker_in_ETF_snapshot_date = 
+            ifelse(sector == !!sector, market_cap_eur/ticker_market_cap_snapshot_date(ETF), 0),
+          wt_ticker_in_ETF_snapshot_date = ifelse(is.na(wt_ticker_in_ETF_snapshot_date), 0, wt_ticker_in_ETF_snapshot_date))
+}
+
+wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date <-
+  market_caps_eur_snapshot_date |> 
+  left_join(holdings, by = "ticker") |>
+  filter(str_detect(type, "Stock")) |> # %in% single_stock_tickers) |>  
+  mutate(wt_ticker_in_bm_snapshot_date = market_cap_eur/MSDEWIN_market_cap_snapshot_date,
+         wt_ticker_in_bm_snapshot_date = ifelse(is.na(wt_ticker_in_bm_snapshot_date), 0, wt_ticker_in_bm_snapshot_date),
+         wt_ticker_in_SPY5_GY_snapshot_date = ifelse(country == "USA", market_cap_eur/SPY5_GY_market_cap_snapshot_date, 0),
+         wt_ticker_in_SPY5_GY_snapshot_date = ifelse(is.na(wt_ticker_in_SPY5_GY_snapshot_date), 0, wt_ticker_in_SPY5_GY_snapshot_date),
+         wt_ticker_in_WTCH_NA_snapshot_date = ifelse(sector == "Information Technology", market_cap_eur/(MSDEWIN_market_cap_snapshot_date * wt_IT_in_bm_snapshot_date), 0),
+         wt_ticker_in_WTCH_NA_snapshot_date = ifelse(is.na(wt_ticker_in_WTCH_NA_snapshot_date), 0, wt_ticker_in_WTCH_NA_snapshot_date),
+         wt_ticker_in_XDWH_GY_snapshot_date = ifelse(sector == "Health Care", market_cap_eur/(MSDEWIN_market_cap_snapshot_date * wt_HC_in_bm_snapshot_date), 0),
+         wt_ticker_in_XDWH_GY_snapshot_date = ifelse(is.na(wt_ticker_in_XDWH_GY_snapshot_date), 0, wt_ticker_in_XDWH_GY_snapshot_date)) |> 
+  select(date, ticker, wt_ticker_in_bm_snapshot_date, wt_ticker_in_SPY5_GY_snapshot_date, wt_ticker_in_WTCH_NA_snapshot_date, wt_ticker_in_XDWH_GY_snapshot_date)
+
+wt_ticker_in_bm_snapshot_date <-
+  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
+  select(date, ticker, wt_ticker_in_bm_snapshot_date)
+wt_ticker_in_SPY5_GY_snapshot_date <-
+  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
+  select(date, ticker, wt_ticker_in_SPY5_GY_snapshot_date)
+wt_ticker_in_WTCH_NA_snapshot_date <-
+  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
+  select(date, ticker, wt_ticker_in_WTCH_NA_snapshot_date)
+wt_ticker_in_XDWH_GY_snapshot_date <-
+  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
+  select(date, ticker, wt_ticker_in_XDWH_GY_snapshot_date)
+
+wt_ticker_in_bm <-
+  all_trr_eur_long |> 
+  left_join(MSDEWIN_trr, by = "date") |> 
+  left_join(wt_ticker_in_bm_snapshot_date, by = c("date", "ticker")) |> 
+  filter(ticker %in% single_stock_tickers) |> 
+  arrange(desc(date)) |> 
+  group_by(ticker) |> 
+  fill(wt_ticker_in_bm_snapshot_date, .direction = "down") |>
+  mutate(adjustment = (1 + trr) / (1 + MSDEWIN_trr),
+         cum_adjustment = cumprod(adjustment), 
+         wt_ticker_in_bm = ifelse(date == snapshot_date, wt_ticker_in_bm_snapshot_date,
+                            wt_ticker_in_bm_snapshot_date/cum_adjustment))
+
+# SPX
+SPY5_GY_trr <- all_trr_eur_long |> filter(ticker == "SPY5_GY") |> ungroup() |>  select(date, SPY5_GY_trr = trr)
+
+wt_ticker_in_SPY5_GY <-
+  all_trr_eur_long |> 
+  left_join(SPY5_GY_trr, by = "date") |> 
+  left_join(wt_ticker_in_SPY5_GY_snapshot_date, by = c("date", "ticker")) |> 
+  filter(ticker %in% single_stock_tickers) |> 
+  arrange(desc(date)) |> 
+  group_by(ticker) |> 
+  fill(wt_ticker_in_SPY5_GY_snapshot_date, .direction = "down") |>
+  mutate(adjustment = (1 + trr) / (1 + SPY5_GY_trr),
+         cum_adjustment = cumprod(adjustment), 
+         wt_ticker_in_SPY5_GY = ifelse(date == snapshot_date, wt_ticker_in_SPY5_GY_snapshot_date,
+                            wt_ticker_in_SPY5_GY_snapshot_date/cum_adjustment),
+         wt_ticker_in_SPY5_GY = ifelse(is.na(wt_ticker_in_SPY5_GY), 0, wt_ticker_in_SPY5_GY))
+##
+
+wt_from_SPY5_GY <-
+  portfolios_tabel |> 
+  filter(portfolio == "VP100", ticker %in% c("SPY5_GY")) |> 
+  select(date, portfolio, SPY5_GY = ticker, SPY5_GY_wt = weight) |> 
+  left_join(wt_ticker_in_SPY5_GY, by = c("date")) |> 
+  mutate(weight = SPY5_GY_wt * wt_ticker_in_SPY5_GY) |> 
+  ungroup() |>
+  mutate(from = "SPY5_GY") |> 
+  select(date, portfolio, ticker, from, weight)
+
+# WTCH
+WTCH_NA_trr <- all_trr_eur_long |> filter(ticker == "WTCH_NA") |> ungroup() |>  select(date, WTCH_NA_trr = trr)
+
+wt_ticker_in_WTCH_NA <-
+  all_trr_eur_long |> 
+  left_join(WTCH_NA_trr, by = "date") |> 
+  left_join(wt_ticker_in_WTCH_NA_snapshot_date, by = c("date", "ticker")) |> 
+  filter(ticker %in% single_stock_tickers) |> 
+  arrange(desc(date)) |> 
+  group_by(ticker) |> 
+  fill(wt_ticker_in_WTCH_NA_snapshot_date, .direction = "down") |>
+  mutate(adjustment = (1 + trr) / (1 + WTCH_NA_trr),
+         cum_adjustment = cumprod(adjustment), 
+         wt_ticker_in_WTCH_NA = ifelse(date == snapshot_date, wt_ticker_in_WTCH_NA_snapshot_date,
+                            wt_ticker_in_WTCH_NA_snapshot_date/cum_adjustment),
+         wt_ticker_in_WTCH_NA = ifelse(is.na(wt_ticker_in_WTCH_NA), 0, wt_ticker_in_WTCH_NA))
+
+wt_from_WTCH_NA <-
+  portfolios_tabel |> 
+  filter(portfolio == "VP100", ticker %in% c("WTCH_NA")) |> 
+  select(date, portfolio, WTCH_NA = ticker, WTCH_NA_wt = weight) |> 
+  left_join(wt_ticker_in_WTCH_NA, by = c("date")) |> 
+  mutate(weight = WTCH_NA_wt * wt_ticker_in_WTCH_NA) |> 
+  ungroup() |>
+  mutate(from = "WTCH_NA") |> 
+  select(date, portfolio, ticker, from, weight)
+
+# XDWH
+XDWH_GY_trr <- all_trr_eur_long |> filter(ticker == "XDWH_GY") |> ungroup() |>  select(date, XDWH_GY_trr = trr)
+
+wt_ticker_in_XDWH_GY <-
+  all_trr_eur_long |> 
+  left_join(XDWH_GY_trr, by = "date") |> 
+  left_join(wt_ticker_in_XDWH_GY_snapshot_date, by = c("date", "ticker")) |> 
+  filter(ticker %in% single_stock_tickers) |> 
+  arrange(desc(date)) |> 
+  group_by(ticker) |> 
+  fill(wt_ticker_in_XDWH_GY_snapshot_date, .direction = "down") |>
+  mutate(adjustment = (1 + trr) / (1 + XDWH_GY_trr),
+         cum_adjustment = cumprod(adjustment), 
+         wt_ticker_in_XDWH_GY = ifelse(date == snapshot_date, wt_ticker_in_XDWH_GY_snapshot_date,
+                            wt_ticker_in_XDWH_GY_snapshot_date/cum_adjustment),
+         wt_ticker_in_XDWH_GY = ifelse(is.na(wt_ticker_in_XDWH_GY), 0, wt_ticker_in_XDWH_GY))
+
+wt_from_XDWH_GY <-
+  portfolios_tabel |> 
+  filter(portfolio == "VP100", ticker %in% c("XDWH_GY")) |> 
+  select(date, portfolio, XDWH = ticker, XDWH_wt = weight) |> 
+  left_join(wt_ticker_in_XDWH_GY, by = c("date")) |> 
+  mutate(weight = XDWH_wt * wt_ticker_in_XDWH_GY) |> 
+  ungroup() |>
+  mutate(from = "XDWH") |> 
+  select(date, portfolio, ticker, from, weight)
+
+
+
+##
+wt_ETF_in_portfolio <- function(portfolio = "VP100", ETF = "SPY5_GY") {
+  dates |> 
+  mutate(!!sym(ETF) := 0, portfolio = !!portfolio) |> 
+  left_join(portfolios_tabel, by = c("date", "portfolio")) |> 
+   mutate(!!sym(ETF) := ifelse(ticker == !!ETF, weight, 0)) |> 
+   select(date, portfolio, !!sym(ETF)) |>
+   group_by(date) |>
+   arrange(desc(!!sym(ETF))) |>
+   slice(1) #|>
+    #misschien filter(!is.na(!!sym(ticker))) 
+}
+
+wt_ticker_in_ETF <- function(portfolio = "VP100", ETF = "SPY5_GY") {
+  all_trr_eur_long |> 
+  left_join(get(str_c(ETF, "_trr")), by = "date") |> 
+  left_join(get(str_c("wt_ticker_in_", ETF, "_snapshot_date")), by = c("date", "ticker")) |> 
+  filter(ticker %in% single_stock_tickers) |> 
+   arrange(desc(date)) |> 
+   group_by(ticker) |> 
+   fill(!!sym(str_c("wt_ticker_in_", ETF, "_snapshot_date")), .direction = "down") |>
+    mutate(adjustment = (1 + trr) / (1 + !!sym(str_c(ETF, "_trr"))),
+            cum_adjustment = cumprod(adjustment))#, 
+   #         !!(str_c("wt_ticker_in_", ETF)) := ifelse(date == snapshot_date, !!sym(str_c("wt_ticker_in_", ETF, "_snapshot_date")),
+   #                           !!sym(str_c("wt_ticker_in_", ETF, "_snapshot_date"))/cum_adjustment),
+   #         wt_ticker_in_SPY5_GY = ifelse(is.na(wt_ticker_in_XDWH_GY), 0, wt_ticker_in_SPY5_GY))
+}
+##
+
+##  
+
+#VP100
+wt_mag7s_in_VP100 <-
+  portfolios_tabel |> 
+  ungroup() |> 
+  filter(portfolio == "VP100", ticker %in% grote_tickers$ticker) |> 
+  mutate(from = "naam") |> 
+  select(date, portfolio, ticker, from, weight) |> 
+  bind_rows(wt_from_WTCH_NA)
+ 
+```
+
+
+### Gewicht Mag7 in MSDEWIN en in VP100
+
+::: panel-tabset
+
+#### Mag7 in MSDEWIN
+
+```{r gewicht_mag7_in_bm_historie_grafiek}
+#| column: page
+#| fig-width: 10
+#| fig-height: 7
+#| warning: false
+#| 
+
+wt_ticker_in_bm |>
+  filter(date < snapshot_date, date >= "2017-06-30") |> 
+  filter(ticker %in% c(grote_tickers$ticker)) |>
+  select(date, ticker, wt_ticker_in_bm) |> 
+  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW"))) |> 
+  ggplot(aes(x=date, y = wt_ticker_in_bm, fill = ticker)) +
+  geom_area(alpha = 0.9, position = "stack") +
+    theme_minimal() +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.3)) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
+  labs(x = "", y = "",
+       title = "gewicht Mag7 in MSDEWIN") +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
         legend.title = element_blank(),
          plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
-    
 ```
 
+#### Mag7 in VP100
+
+```{r gewicht_mag7_in_vp100_historie_grafiek}
+#| column: page
+#| fig-width: 10
+#| fig-height: 7
+#| warning: false
+#| 
+
+wt_mag7s_in_VP100 |>
+  filter(date < snapshot_date, date >= "2017-06-30") |> 
+  filter(ticker %in% c(grote_tickers$ticker)) |>
+  mutate(from = factor(from, levels = c("naam", "WTCH_NA"))) |>
+  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW"))) |> 
+  ggplot(aes(x = date, y = weight, fill = ticker, alpha = from)) +
+  geom_area(position = "stack") +
+    theme_minimal() +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.3)) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
+  scale_alpha_manual(values = c(0.9, 0.7)) +
+  labs(x = "", y = "",
+       title = "gewicht Mag7 in VP100") +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+
+```
+
+#### OU gewicht Mag7 in VP100
+
+```{r mag7_OU_grafiel}
+#| column: page
+#| fig-width: 10
+#| fig-height: 7
+#| warning: false
+#| 
+wt_mag7s_in_VP100 |> 
+  group_by(date, ticker) |>
+  reframe(weight = sum(weight, na.rm = TRUE)) |> 
+  left_join(wt_ticker_in_bm, by = c("date", "ticker")) |> 
+  mutate(OU_ticker = weight - wt_ticker_in_bm) |> 
+  select(date, ticker, weight, wt_ticker_in_bm, OU_ticker) |> 
+  filter(ticker %in% c(grote_tickers$ticker)) |>
+  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW"))) |> 
+  ggplot(aes(x = date, y = OU_ticker, fill = ticker)) +
+  geom_line(aes(col = ticker), alpha = 0.7, linewidth = 2) +
+  scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
+  geom_abline(aes(intercept = 0, slope = 0), alpha = 0.7) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+  facet_wrap(~ticker, ncol = 1) +
+    labs(x = "", y = "",
+       title = "OU gewicht Mag7 in VP100") +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "none",
+        legend.title = element_blank(),
+         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+
+```
+
+:::
+
 ### Verklaring aandelenselectieresultaat
+
+```{r}
+#| column: page
+#| warning: false
+
+
+
+```
+
 Het positieve aandelenselectieresultaat in de eerste periode komt van een aantal namen die het goed deden in die periode (DSM, Visa, United Health, Pfizer, WTCH). Mag7 namen die het goed deden en ook in portefeuille waren zijn Apple, Google, direct en via WTCH. Nvidia en Tesla waren niet in portefeuille, maar met name Nvidia had ook nog geen groot gewicht in de index.
 
 Het negatieve aandelenselectieresultaat in de tweede periode komt door namen in portefeuille die het slecht deden (Intel, Kering, Pfizer, en United Health) en door het (nog) niet hebben van een paar Mag7’s (Nvidia, Meta, Amazon en Tesla). Nvidia en Tesla zijn pas eind 2024 opgenomen in de portefeuille. 
