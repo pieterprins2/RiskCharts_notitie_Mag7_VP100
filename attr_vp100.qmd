@@ -1,5 +1,5 @@
 ---
-title: "VP100: “voldoende spreiding“ vs. “de index bijhouden”"
+title: " Individuele aandelen: “voldoende spreiding“ vs. “de index bijhouden”"
 format: 
   html:
     embed-resources: true  
@@ -12,7 +12,11 @@ execute:
   warning: false
 ---
 
-```{r echo=FALSE, warning=FALSE, message=FALSE}
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+#| 
 #library(quantmod)
 library(png)
 #for charting
@@ -35,400 +39,423 @@ library(gridExtra) #meerdere grafieken op een pagina
 library(paletteer)
 library(rsconnect)
 library(rlang)
+library(janitor)
 
 load("RiRe.RData")
 
 rsconnect::writeManifest()
 ```
 
-
 ```{r waarde-ontwikkeling_VP100_en_msdewin}
 #| warning: false
 #| column: page
 
-data <- 
-  attr_tabellen_RDRM_simple |> 
-  filter(portfolio == "VP100") |> 
-  select(date, VP100 = pf_rt_cum, MSDEWIN = BM_rt_cum) |> 
-  pivot_longer(-date, values_to = "perf", names_to = "pf_bm") |> 
-  mutate(pf_bm = factor(pf_bm, levels = c("VP100", "MSDEWIN"))) 
+#Sys.setlocale("LC_NUMERIC", "nl_NL.UTF-8") |> invisible()
 
+get_portfolio_data <- function(portfolio = "VP100") {
+  attr_tabellen_RDRM_simple |> 
+  filter(portfolio == !!portfolio) |> 
+  select(date, !!sym(portfolio) := pf_rt_cum, BM = BM_rt_cum) |> 
+  pivot_longer(-date, values_to = "perf", names_to = "pf_bm") |> 
+  mutate(pf_bm = factor(pf_bm, levels = c(portfolio, "BM"))) 
+}
 #voor in tekst
-perf_VP100 <- 
-  data |> filter(date == lastdate, pf_bm == "VP100") |> pull(perf)
-perf_MSDEWIN <- 
-  data |> filter(date == lastdate, pf_bm == "MSDEWIN") |> pull(perf)
+perf_portfolio <- function(portfolio = "VP100") {
+  get_portfolio_data(portfolio = portfolio) |> filter(date == snapshot_date, pf_bm == !!portfolio) |> pull(perf)
+}
+
+perf_BM <- function(portfolio = "VP100") {
+  get_portfolio_data(portfolio = "VP100") |> filter(date == snapshot_date, pf_bm == "BM") |> pull(perf)
+}
+
+mag7_tickers <- rev(c("AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW", "META_UW"))
+mag7_fills <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+mag7_tickers_fills <-
+   tibble(ticker = mag7_tickers, fill = mag7_fills) |> 
+   mutate(ticker = factor(ticker, levels = mag7_tickers))
+
+small_cap_tickers <- c("NTSCLBE_NA", "IJR_US")
+andere_etfs <- c("IJPA_NA", small_cap_tickers, "VFEM_NA")
+
+single_stocks_tickers <- 
+  holdings |> 
+  filter(str_detect(type, "Stock"),
+         !ticker %in% c("RDSA_NA", "DSM_NA")) |> 
+  pull(ticker)
+
+single_stocks_tickers_ex_mag7 <- 
+  single_stocks_tickers[-which(single_stocks_tickers %in% mag7_tickers)]
+
+tickers_fills <- 
+  holdings |> 
+  left_join(sectors_colors, by = c("sector" = "ticker")) |> 
+  filter(ticker %in% c(single_stocks_tickers, andere_etfs)) |> 
+  left_join(mag7_tickers_fills |> rename(fil = fill), by = "ticker") |> 
+  mutate(fill = ifelse(is.na(fil), fill, fil),
+         fill = case_when(
+           ticker == "IJPA_NA" ~ "white",
+           ticker %in% small_cap_tickers ~ "brown",
+           ticker == "VFEM_NA" ~ "red",
+           TRUE ~ fill
+         )) |>
+      #VFEM_NA 
+  mutate(fill = ifelse(is.na(fill), "gray", fill)) |>
+  add_row(ticker = "MSDEWIN", fill = "gray", sector = "None") |>
+  add_row(ticker = "Totaal", fill = usred, sector = "None") |>
+  add_row(ticker = "Overige", fill = "gray", sector = "None") |>
+  add_row(ticker = "Mag7", fill = "orange", sector = "None") |>
+  add_row(ticker = "Andere aandelen", fill = ba_color, sector = "None") |>
+  add_row(ticker = "Andere ETFs", fill = etforange, sector = "None") |> 
+  
+  select(ticker, sector, fill) |> 
+  ungroup() |>
+  mutate(sector = factor(sector, levels = sector_levels)) |> 
+  arrange(sector, ticker)
+
+ticker_levels <- tickers_fills$ticker
+
+drie_datums <- c("2017-06-30", "2022-12-31", as.character(snapshot_date))
+
+snaphot_date_day_month_year <- drie_datums[3] |> as.Date() |> format("%d-%b-%Y")
+
+periode_levels <- c("Jul-2017 t/m 2022", str_c("2023 t/m ", snaphot_date_day_month_year), "hele periode")
+periode_einde_levels <- c(as.Date("2022-12-31"), as.Date(drie_datums[3]), as.Date(drie_datums[3]))
+
+periode_tabel <- 
+  tibble(periode = periode_levels) |> 
+  mutate(periode_start = case_when(periode == periode_levels[1] ~ as.Date(drie_datums[1]),
+                                   periode == periode_levels[2] ~ as.Date(drie_datums[2]),
+                                   periode == periode_levels[3] ~ as.Date(drie_datums[1]))) |>
+  mutate(periode_einde = case_when(periode == periode_levels[1] ~ as.Date(drie_datums[2]),
+                                   periode == periode_levels[2] ~ as.Date(drie_datums[3]),
+                                   periode == periode_levels[3] ~ as.Date(drie_datums[3]))) |>
+  mutate(periode = factor(periode, levels = periode_levels))
+
+perf_portfolio_tekst <- function(portfolio) {str_c(round(perf_portfolio(portfolio = "VP100")*100,1),"%")}
+perf_BM_tekst <- function(portfolio) {str_c(round(perf_BM(portfolio)*100,1), "%")}
+outperformance_tekst <- function(portfolio) {str_c(round(100*((1 + perf_portfolio(portfolio = "VP100"))/(1+perf_BM(portfolio)) - 1), 1), "%")}
+
+perf_portfolio_tekst_VP100 <- perf_portfolio_tekst(portfolio = "VP100")
+perf_BM_tekst_VP100 <- perf_BM_tekst(portfolio = "VP100")
+outperformance_tekst_VP100 <- outperformance_tekst(portfolio = "VP100")
 
 ```
 
-### Waarde-ontwikkeling VP100 en MSDEWIN
-De VP100 laat een mooie waarde-ontwikkeling zien. Vanaf de start in juni 2017 t/m juni 2025 een bruto performance van `r str_c(round(perf_VP100*100,1), "%")`. De performance van de MSDEWIN in die periode is `r str_c(round(perf_MSDEWIN*100,1), "%")`. Er is eerst sprake van outperformance, daarna van underperformance.
+### Waarde-ontwikkeling modelportefeuille en MSDEWIN
 
-```{r waarde-ontwikkeling_VP100_en_msdewin_grafiek}
+De VP100 laat een mooie waarde-ontwikkeling zien. Vanaf de start eind juni 2017 t/m juni 2025 een bruto performance van `r perf_portfolio_tekst_VP100`. De performance van de benchmark in die periode is `r perf_BM_tekst_VP100`.
+
+```{r waarde-ontwikkeling_portfolio_en_msdewin_grafiek}
 #| warning: false
 #| column: page
 #| fig-width: 10
 #| fig-height: 3
 
-data |> 
+ontwikkeling_portfolio_en_msdewin_grafiek <- function(portfolio = "VP100") {
+  get_portfolio_data(portfolio = portfolio) |> 
   ggplot(aes(x = date, y = perf, col = pf_bm)) +
   geom_line(linewidth = 1.5) +
   scale_color_manual(values = c(VP100green, bmgray)) +
   scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
   labs(x = "", y = "",
-       title = str_c("VP100 vs. MSDEWIN van ",  
+       title = str_c(portfolio, " vs. MSDEWIN van ",  
                           day(start_date_vp_vf),"-", month(start_date_vp_vf, label = TRUE), "-", year(start_date_vp_vf), " t/m ",
-                          day(lastdate),"-", month(lastdate, label = TRUE), "-", year(lastdate))) +
+                          day(drie_datums[3]),"-", month(drie_datums[3], label = TRUE), "-", year(drie_datums[3]))) +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
         legend.title = element_blank(),
-        plot.title = element_text(hjust = 0.5, face = "bold")) 
+        plot.title = element_text(hjust = 0.5, face = "bold"))
+}
+
+ontwikkeling_portfolio_en_msdewin_grafiek(portfolio = "VP100")
 
 ```
 
-
-Over de hele periode is sprake van een underperformance ("geometrisch" berekend) van `r str_c("(1 + ", round(100*(perf_VP100),1), "%)/(1 + ", round(100*(perf_MSDEWIN),1), "%) - 1 = ", round(100*((1 + perf_VP100)/(1+perf_MSDEWIN) - 1), 1), "%")`.
+Over de hele periode is sprake van een relatieve performance ("geometrisch" berekend) van `r str_c("(1 + ", perf_portfolio_tekst_VP100, ")/(1 + ", perf_BM_tekst_VP100, ") - 1 = ", outperformance_tekst_VP100)`.
 
 ### Voldoende spreiding (lage standaarddeviatie)
+
 Hoeveel individuele aandelen zijn er nodig voor een “goed gespreide portefeuille”? Het antwoord is enkele tientallen. Meer dan dat voegt weinig extra spreiding toe.
 
 In de volgende figuur de volatiliteit (standaarddeviatie) van de portefeuille vs. die van de index.
-
 ```{r sd_VP100_en_BM}
 #| warning: false
 #| column: page
 #| fig-width: 10
 #| fig-height: 3
- 
-drie_datums <- c("2017-06-30", "2022-12-31", "2025-06-30")
 
-data_sd_hele_periode <- 
+data_sd_hele_periode <- function(portfolio = "VP100") {
   attr_tabellen_RDRM_simple |> 
-  filter(portfolio == "VP100") |> 
-  select(date, pf_rt, pf_rt_RD) |> 
+  filter(portfolio == portfolio) |> 
+  select(date, pf_rt_RD) |> 
   left_join(MSDEWIN_trr, by = c("date")) |> 
   filter(date > drie_datums[1]) |> 
-  pivot_longer(names_to = "pf_BM", cols = c(pf_rt, pf_rt_RD, MSDEWIN_trr)) |>
-  group_by(pf_BM) |> 
-  reframe(sd = sd(value, na.rm = TRUE) * sqrt(12)) |> 
-  mutate(pf_BM = case_when(pf_BM == "MSDEWIN_trr" ~ "MSDEWIN", 
-                            pf_BM == "pf_rt" ~ "VP100",
-                            pf_BM == "pf_rt_RD" ~ "VP100 exclusief cash"),
-         pf_BM = factor(pf_BM, levels = c("VP100", "VP100 exclusief cash", "MSDEWIN"))) 
-    
-```
-
-```{r sd_VP100_en_BM2}
-#| column: page
-#| fig-width: 10
-#| fig-height: 3
-#| warning: false
-
-data_sd_twee_periodes <- 
-  attr_tabellen_RDRM_simple |> 
-  filter(portfolio == "VP100") |> 
-  select(date, pf_rt, pf_rt_RD) |> 
-  left_join(MSDEWIN_trr, by = c("date")) |> 
-  filter(date > drie_datums[1]) |> 
-  mutate(periode = ifelse(date <= "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"), 
-         periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"))) |> 
-  pivot_longer(names_to = "pf_BM", cols = c(pf_rt, pf_rt_RD, MSDEWIN_trr)) |>
+  mutate(periode = periode_levels[3]) |> 
+  pivot_longer(names_to = "pf_BM", cols = c(pf_rt_RD, MSDEWIN_trr)) |>
   group_by(pf_BM, periode) |> 
-  reframe(sd = sd(value, na.rm = TRUE) * sqrt(12)) |> 
-    mutate(pf_BM = case_when(pf_BM == "MSDEWIN_trr" ~ "MSDEWIN", 
-                            pf_BM == "pf_rt" ~ "VP100",
-                            pf_BM == "pf_rt_RD" ~ "VP100 exclusief cash"),
-         pf_BM = factor(pf_BM, levels = c("VP100", "VP100 exclusief cash", "MSDEWIN")))
+  reframe(sd = sd(value, na.rm = TRUE) * sqrt(12))
+}
 
-data_sd_hele_periode <- 
-  data_sd_hele_periode |> 
-  mutate(periode = "hele periode") |> 
-  select(pf_BM, periode, sd)
+data_sd_twee_periodes <- function(portfolio = "VP100") {
+  attr_tabellen_RDRM_simple |> 
+  filter(portfolio == portfolio) |> 
+  select(date, pf_rt_RD) |> 
+  left_join(MSDEWIN_trr, by = c("date")) |> 
+  filter(date > drie_datums[1]) |> 
+  mutate(periode = ifelse(date <= drie_datums[2], periode_levels[1], periode_levels[2]), 
+         periode = factor(periode, levels = periode_levels)) |> 
+  pivot_longer(names_to = "pf_BM", cols = c(pf_rt_RD, MSDEWIN_trr)) |>
+  group_by(pf_BM, periode) |> 
+  reframe(sd = sd(value, na.rm = TRUE) * sqrt(12)) 
+}
 
-data_sd_twee_periodes |> 
-  bind_rows(data_sd_hele_periode) |>
-  mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode"))) |> 
+sd_pf_RD_vs_MSDEWIN_grafiek <- function(portfolio = "VP100") {
+  data_sd_twee_periodes(portfolio) |> 
+  bind_rows(data_sd_hele_periode(portfolio)) |>
+  mutate(pf_BM = case_when(pf_BM == "MSDEWIN_trr" ~ "MSDEWIN", 
+                           pf_BM == "pf_rt_RD" ~ str_c(portfolio, " (RD)")),
+         pf_BM = factor(pf_BM, levels = c(str_c(portfolio, " (RD)"), "MSDEWIN")),
+         periode = factor(periode, levels = periode_levels)) |> 
   ggplot(aes(x = periode, y = sd, fill = pf_BM, alpha = pf_BM)) + 
   geom_col(position = position_dodge()) + 
-  scale_fill_manual(values = c(VP100green, VP100green, bmgray)) +
-  scale_alpha_manual(values = c(1, 0.5, 1)) +
+  scale_fill_manual(values = c(VP100green, bmgray)) +
+  scale_alpha_manual(values = c(1, 1)) +
   scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.2)) +
   geom_text(aes(label = str_c(round(sd * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) +
   labs(x = "", y = "",
-       title = "standaarddeviatie in twee periodes, VP100, portefeuille in- en exclusief cash vs. MSDEWIN") +
+       title = str_c("standaarddeviatie in twee periodes, ", portfolio, " (RD) vs. MSDEWIN")) +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
         legend.title = element_blank(),
         plot.title = element_text(hjust = 0.5, face = "bold")) +
   guides(alpha = "none")      
+}
 
-
-  
-
+sd_pf_RD_vs_MSDEWIN_grafiek(portfolio = "VP100")
 ```
 
-De VP100 heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille goed gespreid.
-
-Dat de volatiliteit iets lager was dan de benchmark komt doordat de portefeuille niet vol belegd was, vooral in de eerste periode.
+Het RD-deel van de portefeuille heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille dus goed gespreid.
 
 ### De index bijhouden (lage tracking error)
-In de onderstaande figuur staan de verschillen per maand van de performance van de VP100 en die van de MSDEWIN. Deze cijfers betreffen de hele portefeuille, dus inclusief cash.
+In de onderstaande figuur staan de verschillen per maand en de tracking error van de performance van het RD-gedeelte van de portefeuille vs. die van de MSDEWIN.
 
 ```{r verschillen_per_maand}
 #| column: page
 #| fig-width: 10
 #| fig-height: 3
-#| 
-pf_bm_returns_si |> 
-  filter(date >= start_date_vp_vf,
+
+verschillen_per_maand <- function(portfolio = "VP100") {
+  attr_tabellen_RDRM_simple |> 
+  filter(date > start_date_vp_vf,
          date <= lastdate,
-         portfolio %in% "VP100") |> 
-  mutate(diff = pf_rt - BM_rt) |> 
-  ggplot(aes(x=date, fill = color)) +
+         portfolio == !!portfolio) |> 
+  mutate(diff = pf_rt_RD - BM_rt_RD) 
+}
+
+te_RD <- function(portfolio = "VP100") {
+  verschillen_per_maand(portfolio) |> 
+  summarise(te = sd(diff, na.rm = TRUE)*sqrt(12)) |> 
+  pull(te)
+}
+
+verschillen_per_maand_grafiek <- function(portfolio = "VP100") {
+  verschillen_per_maand(portfolio) |> 
+  ggplot(aes(x=date, fill = !!sym(str_c(portfolio, "green")))) +
   geom_col(aes(y=diff)) +
   scale_fill_identity() + 
   scale_x_date(breaks = datum_breaks(start_date = start_date_vp_vf, end_date = lastdate)) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1), sec.axis = dup_axis()) +
   theme(plot.title = element_text(hjust = 0.5)) + 
-  ggtitle(str_c("performance verschillen met de benchmark, VP100,",
-         " van ",  
-                          day(start_date_vp_vf),"-", month(start_date_vp_vf, label = TRUE), "-", year(start_date_vp_vf), " t/m ",
-                          day(lastdate),"-", month(lastdate, label = TRUE), "-", year(lastdate))) +
+  ggtitle(str_c("performance verschillen RD met de benchmark, ", portfolio, ". Tracking error is ", round(te_RD(portfolio = portfolio) * 100, 1), "%. *)")) +
   charts_custom_theme +
   theme_minimal() +
+  labs(caption = str_c("*) De tracking error is de standaarddeviatie van de verschillen op jaarbasis."), 
+       x = "", y = "") +
   theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+}
+
+verschillen_per_maand_grafiek(portfolio = "VP100")
 ```
 
-De (ex-post) tracking error is de standaarddeviatie daarvan op jaarbasis. Dat is 3,7%. De ex-ante tracking error (gebruik makend van huidige gewichten en een variantie-covariantiematrix) is 4%. Er is (als je veronderstelt dat rendementen normaal verdeeld zijn) een kans van ruwweg 68% dat de out- of underperformance op jaarbasis kleiner is dan dat en de kans is 95% is dat de uitkomst binnen + en – 2x dit getal valt.
 
-### Verklaring van het verschil met de benchmark
-De asset allocatie leverde de grootste negatieve bijdrage. De portefeuille is niet vol belegd geweest terwijl de markt is gestegen. Het resultaat RD is het verschil tussen de performance van het in RD belegde deel van de portefeuille en de MSDEWIN. In de eerste periode was dit sterk positief en in de tweede periode sterk negatief.
+### Verklaring van het verschil tussen de portefeuille en de benchmark
 
-```{r}
-#| column: page
-#| fig-width: 10
-#| fig-height: 3
-
-attr_tabellen_RDRM_simple |> 
-  filter(portfolio == "VP100") |> 
-  select(date, totaal = er, `asset allocatie` = all_ff, `resultaat RD` = sel_ff_RD) |> 
-  add_row(date = as.Date("2017-06-30"), totaal = 0, `asset allocatie` = 0, `resultaat RD` = 0) |>
-  arrange(date) |>
-  mutate(totaal = cumprod(totaal + 1),
-         `asset allocatie` = cumprod(`asset allocatie` + 1), 
-         `resultaat RD` = cumprod(`resultaat RD` + 1)) |> 
-  filter(date %in% drie_datums) |> 
-  select(date, totaal, `asset allocatie`, `resultaat RD`) |> 
-  pivot_longer(cols = -date, names_to = "type", values_to = "index") |> 
-  group_by(type) |>
-#
-    unique() |> 
- #
-   mutate(resultaat = index/lag(index) - 1,
-         periode = c(NA, "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025")) |> 
-  filter(!is.na(resultaat)) |> 
-  select(-index, -date) |> 
-  pivot_wider(names_from = periode, values_from = resultaat) |> 
-  mutate('hele periode' = (1 + `jul-2017 t/m dec-2022`)*(1 + `jan-2023 t/m jun-2025`) - 1) |> 
-  pivot_longer(cols = -type, names_to = "periode", values_to = "resultaat") |> 
-  mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode")),
-         type = factor(type, levels = c("asset allocatie", "resultaat RD", "totaal"))) |>
-  ggplot(aes(x = periode, y = resultaat, fill = type)) +
-  geom_col(position = position_dodge()) +
-  scale_fill_manual(values = c(euroblue, usred, VP100green)) +
-  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(-0.2, 0.2)) +
-  geom_text(aes(label = str_c(round(resultaat * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
-  theme_minimal() +
-  labs(x = "", y = "",
-       title = "performance-attributie VP100,  asset allocatie, resultaat RD en totaal, \ntwee perioden en hele periode sinds juni 2017
-",
-       caption = NULL) +
-  theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),#, size = 25),
-        legend.position = "bottom",
-        legend.title = element_blank())
-  
-```
-
-Ter illustratie hieronder het gewicht van cash en obligaties in de VP100.
-
-```{r}
-#| column: page
-#| fig-width: 10
-#| fig-height: 3
-  asset_weights_pfs |> 
-    filter(!asset == "Aandelen", portfolio %in% "VP100", date >= start_date_vp_vf, date <= lastdate) |>
-    mutate(aset = factor(asset, levels = c("Obligaties", "Cash")) ) |>
-  ggplot() +
-    geom_area(aes(x = date, y = wt, fill = asset, col = asset), alpha = 0.3, position = "stack", ) +
-    scale_y_continuous(labels = scales::percent_format(accuracy = 1), sec.axis = dup_axis()) +
-    #scale_x_date(date_labels = "%b-%y", breaks = datum_breaks(start_date_vp_vf, lastdate)) +
-    scale_color_manual(values = rev(c(bondspurple, cashblue)),
-                      guide = guide_legend(reverse = FALSE)) +
-    scale_fill_manual(values = rev(c(bondspurple, cashblue)),
-                      guide = guide_legend(reverse = FALSE)) +
-    labs(x = "", y = "") +
-    ggtitle(str_c("cash en obligaties in VP100, van ",  
-                          day(start_date_vp_vf), "-", month(start_date_vp_vf, label = TRUE), "-", year(start_date_vp_vf), " t/m ",
-                          day(lastdate), "-", month(lastdate, label = TRUE), "-", year(lastdate))) +
-    charts_custom_theme +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),#, size = 25),
-        legend.position = "bottom",
-        legend.title = element_blank())
-
-```
-
-### Verklaring van het resultaat RD
-Hieronder het resultaat RD per jaar.
-
-```{r resultaat_vp_rd_per_jaar}
+```{r attr_RDRM}
 #| column: page
 #| fig-width: 10
 #| fig-height: 3
 #| 
-attr_tabellen_RDRM_simple |> filter(portfolio == "VP100") |> 
-  select(date, sel_ff_RD) |> 
-  mutate(sel_ff_RD_index = cumprod(sel_ff_RD + 1), maand = month(date)) |> 
-  filter(maand %in% c(6,12)) |> 
-  mutate(n= row_number()) |> 
-  filter(maand == 12 | n %in% c(1, 17)) |> 
-  mutate(sel_ff_RD_periode = sel_ff_RD_index/lag(sel_ff_RD_index)- 1) |> 
-  filter(!is.na(sel_ff_RD_periode)) |> 
-  select(date, sel_ff_RD =sel_ff_RD_periode) |> 
-  mutate(jaar = year(date))|> 
-  ggplot(aes(x = jaar, y = sel_ff_RD)) +
-  geom_col(fill = usred) +
-  theme_minimal() +
-  labs(x="", y="",
-       title = "resultaat RD VP100 per jaar, van 30-jun-2017 t/m 30-jun-2025") +
-  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(-0.1, 0.1)) +
-  geom_text(aes(label = str_c(round(sel_ff_RD * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
-  charts_custom_theme +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+#snel overgenomen ui app.qmd en aangepast voor VP100, een portefeuille
+chart_attr_effecten_RDRM_portfolio <- function(start_date = start_date_vp_vf, end_date = snapshot_date, portfolio = "VP100") {
+    #alle_pfs
+    attr_tabellen <- map_dfr(portfolio_levels, attr_tabel_RDRM_simple, start_date, end_date) 
+    #allen de beschikbare voor de gehele periode
+    pfs <- attr_tabellen |> group_by(portfolio) |> tally() |> filter(n == max(n)) |> pull(portfolio)
+    attr_tabellen |> 
+        filter(portfolio %in% !!portfolio) |> 
+        select(portfolio, date, er_cum, all_ff_cum, sel_ff_RD_cum, sel_ff_RM_cum) %>%
+        rename_at(vars(-date), ~str_remove(., "_cum")) %>%
+        pivot_longer(-c(date, portfolio), names_to  = "ff") %>%
+        mutate(portfolio = factor(portfolio, levels = portfolio_levels),
+               ff = factor(ff, levels = c("er", "all_ff", "sel_ff_RD", "sel_ff_RM"))) %>%
+        ggplot(aes(x = date, y = value, group = ff, col = ff, linewidth = ff, fill = ff)) +
+        geom_line(alpha = 0.8) +
+        geom_hline(yintercept = 0, col = "grey60", linetype = "dashed") +
+        scale_color_manual(values = c(RD30green, euroblue, usred, bondspurple)) +
+        scale_linewidth_manual(values = c(2, 1, 1, 1)) +
+        scale_y_continuous(labels = scales::percent_format(accuracy = 0.1), sec.axis = dup_axis()) +
+        scale_x_date(date_labels = "%b-%y", breaks = datum_breaks(start_date, end_date)) +
+        ggtitle(str_c("Cumulatieve RDRM attributie-effecten, van ", format(as.Date(start_date), "%d-%b-%Y"), " t/m ", format(as.Date(end_date), "%d-%b-%Y"), ", ", portfolio)) +
+        labs(x = "", y = "") +
+        facet_wrap(~portfolio, ncol = 8) +
+        charts_custom_theme +
+        theme_minimal() +
+        theme(legend.position = "bottom") +
+        theme(legend.title = element_blank()) +
+        theme(axis.text.x = element_text(angle = 90, vjust = .5),
+              strip.text = element_blank(), #geen strip tekst,
+              plot.title = element_text(hjust = 0.5))
+}
+
+chart_attr_effecten_RDRM_portfolio(portfolio = "VP100")
 ```
+
+Het grootste deel van de relatieve performance over de gehele periode is het allocatieresultaat.
+
+```{r attr_RDRM_allo}
+#| column: page
+#| fig-width: 10
+#| fig-height: 3
+#| warning: false
+
+
+asset_weights_pfs_plot_RM <- function(portfolio = "VP100", start_date = start_date_vp_vf, end_date = snapshot_date) {
+  
+  asset_weights_pfs_plot(portfolios = portfolio) +
+    scale_y_continuous(labels = percent_format(accuracy = 1), sec.axis = dup_axis()) + #, limits = c(0.4, 1)) +
+    ggtitle(str_c("Gewicht asset categorieën, van ", format(as.Date(start_date), "%d-%b-%Y"), " t/m ", format(as.Date(end_date), "%d-%b-%Y"), ", ", portfolio),
+            subtitle = NULL) +
+    charts_custom_theme +
+    theme_minimal() +
+    theme(legend.position = "bottom") +
+    theme(legend.title = element_blank()) +
+    theme(axis.text.x = element_text(angle = 90, vjust = .5),
+          strip.text = element_blank(), #geen strip tekst,
+          plot.title = element_text(hjust = 0.5))
+}
+
+asset_weights_pfs_plot_RM(portfolio = "VP100", start_date = start_date_vp_vf, end_date = snapshot_date)
+```
+De oorzaak hiervan is het gewicht in obligaties en cash in de eerste helft van de periode bij een stijgende aandelenmarkt. Hieronder wordt ingegaan op de rest: het resultaat binnen RD.
+
+### Verklaring van het resulaat RD uit sectorallocatie en aandelenselectie
 
 Het reslutaat RD is uit te splitsen in sectorallocatie en aandelenselectie. De sectorallocatie is de bijdrage van de verdeling over de verschillende sectoren, de aandelenselectie is het resultaat van de keuze van individuele aandelen binnen die sectoren.
 
-```{r}
+```{r attr_RD}
 #| column: page
 #| fig-width: 10
 #| fig-height: 3
 
-attr_tabellen_pfs_sector_Bs_Ae_Se |> 
-  filter(portfolio == "VP100") |> 
-  select(date, sectorallocatie = All_ff, aandelenselectie = Sel_ff) |> 
-  add_row(date = as.Date("2017-06-30"), sectorallocatie = 0, aandelenselectie = 0) |>
+chart_attr_RD <- function(portfolio = "VP100") {
+  attr_tabellen_pfs_sector_Bs_Ae_Se |> 
+  filter(portfolio == !!portfolio) |> 
+  select(date, sectorallocatie = All_ff, aandelenselectie = Sel_ff, totaal = er) |> 
+  add_row(date = as.Date(drie_datums[1]), sectorallocatie = 0, aandelenselectie = 0, totaal = 0) |>
   arrange(date) |>
   mutate(sectorallocatie = cumprod(sectorallocatie + 1), 
-         aandelenselectie = cumprod(aandelenselectie + 1)) |> 
+         aandelenselectie = cumprod(aandelenselectie + 1),
+         totaal = cumprod(totaal + 1)) |> 
   filter(date %in% drie_datums) |> 
-  select(date, sectorallocatie, aandelenselectie) |> 
+  select(date, sectorallocatie, aandelenselectie, totaal) |> 
   pivot_longer(cols = -date, names_to = "type", values_to = "index") |> 
   group_by(type) |>
   mutate(resultaat = index/lag(index) - 1,
-         periode = c(NA, "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025")) |> 
+         periode = c(NA, periode_levels[1], periode_levels[2])) |> 
   filter(!is.na(resultaat)) |> 
   select(-index, -date) |> 
   pivot_wider(names_from = periode, values_from = resultaat) |> 
-  mutate('hele periode' = (1 + `jul-2017 t/m dec-2022`)*(1 + `jan-2023 t/m jun-2025`) - 1) |> 
+  mutate(!!periode_levels[3] := (1 + !!sym(periode_levels[1]))*(1 + !!sym(periode_levels[2])) - 1) |> 
   pivot_longer(cols = -type, names_to = "periode", values_to = "resultaat") |> 
-  mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode")),
-         type = factor(type, levels = c("sectorallocatie", "aandelenselectie"))) |>
-  ggplot(aes(x = periode, y = resultaat, fill = type)) +
-  geom_col(position = position_dodge(), alpha = 0.5) +
-  scale_fill_manual(values = c(euroblue, usred)) +
-  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(-0.15, 0.15)) +
+  mutate(periode = factor(periode, levels = periode_levels),
+         type = factor(type, levels = c("sectorallocatie", "aandelenselectie", "totaal"))) |>
+  ggplot(aes(x = periode, y = resultaat, fill = type, alpha = type)) +
+  geom_col(position = position_dodge()) +
+  scale_fill_manual(values = c(euroblue, usred, usred)) +
+  scale_alpha_manual(values = c(0.5, 0.5, 1)) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(-0.2, 0.2)) +
   geom_text(aes(label = str_c(round(resultaat * 100, 1), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) +   
   theme_minimal() +
   labs(x = "", y = "",
-       title = "performance-attributie resultaat RD VP100, sectorallocatie en aandelenselectie, \ntwee perioden en sinds juni 2017",
+       title = str_c("performance-attributie resultaat RD ", portfolio, " twee perioden en sinds juni 2017"),
        caption = NULL) +
   charts_custom_theme +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),#, size = 25),
         legend.position = "bottom",
-        legend.title = element_blank())
+        legend.title = element_blank()) +
+  guides(alpha = "none")      
+}
+
+chart_attr_RD(portfolio = "VP100")
 ```
 
-De sectorallocatie was in de eerste periode positief en in de tweede periode negatief. De aandelenselectie was in de eerste periode sterk positief, maar in de tweede periode sterk negatief. De aandelenselectie is de grootste bron van afwijking tussen de VP100 en de benchmark.
+De sectorallocatie was in de eerste periode positief en in de tweede periode negatief. De aandelenselectie was in de eerste periode sterk positief, maar in de tweede periode sterk negatief.
 
-### Mag7 scenario
-Een "Mag7 scenario" is een scenario waarin een beperkt aantal aandelen zorgt voor praktisch alle waardestijging van de index. Bij een beperkt aantal regels in een individuele-aandelenportefeuille bestaat een grote kans dat je een of meerdere van deze Mag7 niet hebt. Dan is de portefeuille weliswaar “goed gespreid”, maar je blijft achter bij de index.
+
+### Verklaring van het resulaat RD uit alleen aandelenselectie
+
+Het selectieresultaat aandelen is dus verreweg de grootste bron van tussentijdse afwijkingen met de benchmark. 
+
+Hieronder wordt het verschill in performance tussen het RD-deel van de portefeuille en de benchmark RD verklaard uit alleen de wegingen van individuele aandelen.  Sectorallocatie speelt dus geen rol. Deze aandelen kunnen wel of niet in de portefeuille voorkomen. Van een klein aantal van de aandelen die niet in de portefeuille voorkomen zijn gegevens gedownload. Dit betreffen de Mag7 aandelen voor zover nog niet in portefeuille, LLY in Health Care en Netflix in Communication Services. In totaal zijn er 58 tickers beschikbaar. Verreweg de meeste zijn dus niet beschikbaar.
+
+De periode wordt in twee delen geknipt, een van 30 juni 2017 t/m 2022 en een vanaf 2023. De reden hiervoor is dat het selectieresultaat in de eerste periode sterk positief was, maar in de tweede periode sterk negatief.
+
+#### Mag7
+
+De afgelopen tijd hebben de Mag7 gezorgd voor een groot deel van de waardestijging van de benchmark. Bij een beperkt aantal regels in een individuele-aandelenportefeuille bestaat in zo'n Mag7 scenario een grote kans dat je een of meerdere van deze Mag7 niet hebt. Dan is de portefeuille weliswaar “goed gespreid”, maar je blijft achter bij de index. 
 
 Ter illustratie hieronder de performance van Mag7 aandelen en de MSDEWIN in beide periodes.
 
 ```{r mag_7_2_periodes}
 #| column: page
 #| fig-width: 10
-#| fig-height: 7
+#| fig-height: 5
 
-mag7_hele_periode <-
-  all_prices_eur_long |> 
-  filter(ticker %in% c(grote_tickers$ticker, "MSDEWIN")) |> 
-  filter(date %in% c(drie_datums[1], drie_datums[3])) |> 
-  arrange(ticker, date) |> group_by(ticker) |> 
-  mutate(perf_eur = price_eur/lag(price_eur)-1) |> 
-  filter(!is.na(perf_eur)) |> 
-  mutate(periode = "hele periode") 
-
-mag7_twee_periodes <-
-  mag7_twee_periodes <-
-  all_prices_eur_long |> 
-  filter(ticker %in% c(grote_tickers$ticker, "MSDEWIN")) |> 
-  filter(date %in% drie_datums) |> 
-  arrange(ticker, date) |> group_by(ticker) |> 
-  mutate(perf_eur = price_eur/lag(price_eur)-1) |> 
-  filter(!is.na(perf_eur)) |> 
-  mutate(periode = ifelse(date == "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025")) |>  
-  filter(!is.na(perf_eur))
-
-
-# mag7_twee_periodes |> bind_rows(mag7_hele_periode) |> 
-#   mutate(periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025", "hele periode"))) |> 
-#   select(-price_eur) |> 
-#   ggplot(aes(x = ticker, y = perf_eur, group = periode, fill = periode)) + 
-#   geom_col(position = position_dodge()) + 
-#   scale_fill_manual(values = c("#E69F00", "#56B4E9", "green")) +
-#   theme_minimal() + 
-#   scale_y_continuous(labels = percent_format(), limits = c(-1, 50), sec.axis = dup_axis()) +
-#   geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 3, fontface = "bold", position = position_dodge(width = 1), vjust = -1) + 
-#   labs(x = "", y = "",
-#        title = "koersstijging in euro's, twee periodes, Mag7 en MSDEWIN") +
-#   charts_custom_theme +
-#   theme_minimal() +
-#   theme(legend.position = "bottom",
-#         legend.title = element_blank(),
-#          plot.title = element_text(hjust = 0.45, vjust = 0, face = "bold"))
-  
 all_prices_eur_long |>
-  filter(ticker %in% c(grote_tickers$ticker, "MSDEWIN")) |>
-  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW", "MSDEWIN"))) |> 
+  filter(ticker %in% c(mag7_tickers, "MSDEWIN")) |>
   filter(date %in% drie_datums) |>
-  arrange(ticker, date) |> group_by(ticker) |>
-  mutate(perf_eur = price_eur/lag(price_eur)-1) |>
-  mutate(periode = ifelse(date == "2022-12-31", "jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"),
-         periode = factor(periode, levels = c("jul-2017 t/m dec-2022", "jan-2023 t/m jun-2025"))) |>
+  arrange(ticker, date) |> 
+  group_by(ticker) |>
+  mutate(perf_eur = price_eur/lag(price_eur)-1,
+         periode = ifelse(date == drie_datums[2], periode_levels[1], periode_levels[2]),
+         periode = factor(periode, levels = periode_levels)) |>
   filter(!is.na(perf_eur)) |>
   select(-price_eur) |>
-  ggplot(aes(x = ticker, y = perf_eur, group = periode, fill = ticker, alpha = periode)) +
+  #kleuren voor identity
+  left_join(tickers_fills, by = "ticker") |> 
+  mutate(ticker = factor(ticker, levels = rev(ticker_levels))) |> 
+  #
+  ggplot(aes(x = ticker, y = perf_eur, group = periode, fill = fill, alpha = periode)) +
   geom_col(position = position_dodge()) +
-  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
+  scale_fill_identity() +
   scale_alpha_manual(values = c(0.5, 1)) +
   theme_minimal() +
-  scale_y_continuous(labels = percent_format(), limits = c(0, 10), sec.axis = dup_axis()) +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
   geom_text(aes(label = str_c(round(perf_eur * 100, 0), "%")), col = "gray30", size = 4, fontface = "bold", position = position_dodge(width = 1), vjust = -1) +
   labs(x = "", y = "",
        title = "koersontwikkeling in euro's, twee periodes, Mag7 en MSDEWIN") +
   charts_custom_theme +
   theme_minimal() +
-  theme(legend.position = "none",
+  theme(legend.position = "bottom",
         legend.title = element_blank(),
-         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold")) 
+         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
     
 ```
+
 ```{r gewicht_tickers_in_bm_historie}
 #| column: page
 #| warning: false
@@ -454,32 +481,6 @@ market_caps_eur_snapshot_date <-
   select(date, ticker, market_cap_eur) |>
   filter(!is.na(market_cap_eur))
 
-MSDEWIN_market_cap_snapshot_date <- 
-  market_caps_eur_snapshot_date |> 
-  filter(ticker == "MSDEWIN") |> 
-  pull(market_cap_eur)
-
-SPY5_GY_market_cap_snapshot_date <-
-  market_caps_eur_snapshot_date |> 
-  filter(ticker == "SPX") |> 
-  pull(market_cap_eur)
-
-WTCH_NA_market_cap_snapshot_date <-
-  market_caps_eur_snapshot_date |> 
-  filter(ticker == "WTCH_NA") |> 
-  pull(market_cap_eur)
-
-XDWH_GY_market_cap_snapshot_date <-
-  market_caps_eur_snapshot_date |> 
-  filter(ticker == "XDWH_GY") |> 
-  pull(market_cap_eur)
-
-
-single_stock_tickers <- 
-  holdings |> 
-  filter(str_detect(type, "Stock")) |> 
-  pull(ticker)
-
 ticker_market_cap_snapshot_date <- function(ticker) {
   market_caps_eur_snapshot_date |> 
   filter(ticker == !!ticker, date == snapshot_date) |> 
@@ -492,144 +493,76 @@ wt_sector_in_MSDEWIN_snapshot_date <- function(sector) {
   pull(weight)
 }
 
-wt_IT_in_bm_snapshot_date <- ticker_sector_weights_hist |> filter(ticker == "IWDA_NA", sector == "Information Technology", date == snapshot_date) |> pull(weight)
-wt_HC_in_bm_snapshot_date <- ticker_sector_weights_hist |> filter(ticker == "IWDA_NA", sector == "Health Care", date == snapshot_date) |> pull(weight)
+japan_wgt_snapshot_date <- 
+  etf_country_weights |> 
+  filter(country == "Japan") |> 
+  pull(IWDA_NA)
 
-wt_ticker_in_ETF_snapshot_date <- function(ETF = "WTCH_NA", sector = "Information Technology") {
+wt_tickers_in_ETF_snapshot_date <- function(ETF = "WTCH_NA") {
+   #twee gevallen: wereld(IWDA_NA) en sector (slechts twee: XDWH_GY en WTCH_NA)
+  if(ETF == "IWDA_NA") {
+    market_caps_eur_snapshot_date |> 
+      #geen market cap van NTSCLBE_NA 
+      add_row(date = snapshot_date, ticker = "NTSCLBE_NA", market_cap_eur = 0) |> #heeft toch geen gewicht in bm
+      #
+    left_join(holdings, by = "ticker") |> filter(ticker %in% c(single_stocks_tickers, andere_etfs)) |> 
+    mutate(wt_tickers_in_ETF_snapshot_date = market_cap_eur/ticker_market_cap_snapshot_date("MSDEWIN"),
+           wt_tickers_in_ETF_snapshot_date = ifelse(is.na(wt_tickers_in_ETF_snapshot_date), 0, wt_tickers_in_ETF_snapshot_date),
+           wt_tickers_in_ETF_snapshot_date = ifelse(ticker == "IJPA_NA", japan_wgt_snapshot_date, wt_tickers_in_ETF_snapshot_date),
+           wt_tickers_in_ETF_snapshot_date = ifelse(ticker %in% c("NTSCLBE_NA", "IJR_US", "VFEM_NA"), 0, wt_tickers_in_ETF_snapshot_date))
+  } else {
+   sector <- 
+     holdings |> filter(ticker == ETF) |> pull(sector)
+   #mkt cap opzoeken
    market_caps_eur_snapshot_date |> 
    left_join(holdings, by = "ticker") |>
-   filter(str_detect(type, "Stock")) |>
-   mutate(wt_ticker_in_ETF_snapshot_date = 
-            ifelse(sector == !!sector, market_cap_eur/ticker_market_cap_snapshot_date(ETF), 0),
-          wt_ticker_in_ETF_snapshot_date = ifelse(is.na(wt_ticker_in_ETF_snapshot_date), 0, wt_ticker_in_ETF_snapshot_date))
+   #ind aandelen mkt caps
+   filter(ticker %in% c(single_stocks_tickers, andere_etfs)) |>
+   #gewicht uitrekenen op basis van market cap
+   mutate(wt_tickers_in_ETF_snapshot_date = 
+            ifelse(sector == !!sector, 
+                   market_cap_eur/(ticker_market_cap_snapshot_date("MSDEWIN") * wt_sector_in_MSDEWIN_snapshot_date(sector = !!sector)), 0))
+  }
 }
 
-wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date <-
-  market_caps_eur_snapshot_date |> 
-  left_join(holdings, by = "ticker") |>
-  filter(str_detect(type, "Stock")) |> # %in% single_stock_tickers) |>  
-  mutate(wt_ticker_in_bm_snapshot_date = market_cap_eur/MSDEWIN_market_cap_snapshot_date,
-         wt_ticker_in_bm_snapshot_date = ifelse(is.na(wt_ticker_in_bm_snapshot_date), 0, wt_ticker_in_bm_snapshot_date),
-         wt_ticker_in_SPY5_GY_snapshot_date = ifelse(country == "USA", market_cap_eur/SPY5_GY_market_cap_snapshot_date, 0),
-         wt_ticker_in_SPY5_GY_snapshot_date = ifelse(is.na(wt_ticker_in_SPY5_GY_snapshot_date), 0, wt_ticker_in_SPY5_GY_snapshot_date),
-         wt_ticker_in_WTCH_NA_snapshot_date = ifelse(sector == "Information Technology", market_cap_eur/(MSDEWIN_market_cap_snapshot_date * wt_IT_in_bm_snapshot_date), 0),
-         wt_ticker_in_WTCH_NA_snapshot_date = ifelse(is.na(wt_ticker_in_WTCH_NA_snapshot_date), 0, wt_ticker_in_WTCH_NA_snapshot_date),
-         wt_ticker_in_XDWH_GY_snapshot_date = ifelse(sector == "Health Care", market_cap_eur/(MSDEWIN_market_cap_snapshot_date * wt_HC_in_bm_snapshot_date), 0),
-         wt_ticker_in_XDWH_GY_snapshot_date = ifelse(is.na(wt_ticker_in_XDWH_GY_snapshot_date), 0, wt_ticker_in_XDWH_GY_snapshot_date)) |> 
-  select(date, ticker, wt_ticker_in_bm_snapshot_date, wt_ticker_in_SPY5_GY_snapshot_date, wt_ticker_in_WTCH_NA_snapshot_date, wt_ticker_in_XDWH_GY_snapshot_date)
-
-wt_ticker_in_bm_snapshot_date <-
-  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
-  select(date, ticker, wt_ticker_in_bm_snapshot_date)
-wt_ticker_in_SPY5_GY_snapshot_date <-
-  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
-  select(date, ticker, wt_ticker_in_SPY5_GY_snapshot_date)
-wt_ticker_in_WTCH_NA_snapshot_date <-
-  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
-  select(date, ticker, wt_ticker_in_WTCH_NA_snapshot_date)
-wt_ticker_in_XDWH_GY_snapshot_date <-
-  wt_ticker_in_bm_SPY5_WTCH_XDWH_snapshot_date |> 
-  select(date, ticker, wt_ticker_in_XDWH_GY_snapshot_date)
-
-wt_ticker_in_bm <-
-  all_trr_eur_long |> 
-  left_join(MSDEWIN_trr, by = "date") |> 
-  left_join(wt_ticker_in_bm_snapshot_date, by = c("date", "ticker")) |> 
-  filter(ticker %in% single_stock_tickers) |> 
-  arrange(desc(date)) |> 
-  group_by(ticker) |> 
-  fill(wt_ticker_in_bm_snapshot_date, .direction = "down") |>
-  mutate(adjustment = (1 + trr) / (1 + MSDEWIN_trr),
-         cum_adjustment = cumprod(adjustment), 
-         wt_ticker_in_bm = ifelse(date == snapshot_date, wt_ticker_in_bm_snapshot_date,
-                            wt_ticker_in_bm_snapshot_date/cum_adjustment))
-
-# SPX
-SPY5_GY_trr <- all_trr_eur_long |> filter(ticker == "SPY5_GY") |> ungroup() |>  select(date, SPY5_GY_trr = trr)
-
-wt_ticker_in_SPY5_GY <-
-  all_trr_eur_long |> 
-  left_join(SPY5_GY_trr, by = "date") |> 
-  left_join(wt_ticker_in_SPY5_GY_snapshot_date, by = c("date", "ticker")) |> 
-  filter(ticker %in% single_stock_tickers) |> 
-  arrange(desc(date)) |> 
-  group_by(ticker) |> 
-  fill(wt_ticker_in_SPY5_GY_snapshot_date, .direction = "down") |>
-  mutate(adjustment = (1 + trr) / (1 + SPY5_GY_trr),
-         cum_adjustment = cumprod(adjustment), 
-         wt_ticker_in_SPY5_GY = ifelse(date == snapshot_date, wt_ticker_in_SPY5_GY_snapshot_date,
-                            wt_ticker_in_SPY5_GY_snapshot_date/cum_adjustment),
-         wt_ticker_in_SPY5_GY = ifelse(is.na(wt_ticker_in_SPY5_GY), 0, wt_ticker_in_SPY5_GY))
-##
-
-wt_from_SPY5_GY <-
-  portfolios_tabel |> 
-  filter(portfolio == "VP100", ticker %in% c("SPY5_GY")) |> 
-  select(date, portfolio, SPY5_GY = ticker, SPY5_GY_wt = weight) |> 
-  left_join(wt_ticker_in_SPY5_GY, by = c("date")) |> 
-  mutate(weight = SPY5_GY_wt * wt_ticker_in_SPY5_GY) |> 
-  ungroup() |>
-  mutate(from = "SPY5_GY") |> 
-  select(date, portfolio, ticker, from, weight)
-
-# WTCH
+IWDA_NA_trr <- MSDEWIN_trr |> rename(IWDA_NA_trr = MSDEWIN_trr)
 WTCH_NA_trr <- all_trr_eur_long |> filter(ticker == "WTCH_NA") |> ungroup() |>  select(date, WTCH_NA_trr = trr)
-
-wt_ticker_in_WTCH_NA <-
-  all_trr_eur_long |> 
-  left_join(WTCH_NA_trr, by = "date") |> 
-  left_join(wt_ticker_in_WTCH_NA_snapshot_date, by = c("date", "ticker")) |> 
-  filter(ticker %in% single_stock_tickers) |> 
-  arrange(desc(date)) |> 
-  group_by(ticker) |> 
-  fill(wt_ticker_in_WTCH_NA_snapshot_date, .direction = "down") |>
-  mutate(adjustment = (1 + trr) / (1 + WTCH_NA_trr),
-         cum_adjustment = cumprod(adjustment), 
-         wt_ticker_in_WTCH_NA = ifelse(date == snapshot_date, wt_ticker_in_WTCH_NA_snapshot_date,
-                            wt_ticker_in_WTCH_NA_snapshot_date/cum_adjustment),
-         wt_ticker_in_WTCH_NA = ifelse(is.na(wt_ticker_in_WTCH_NA), 0, wt_ticker_in_WTCH_NA))
-
-wt_from_WTCH_NA <-
-  portfolios_tabel |> 
-  filter(portfolio == "VP100", ticker %in% c("WTCH_NA")) |> 
-  select(date, portfolio, WTCH_NA = ticker, WTCH_NA_wt = weight) |> 
-  left_join(wt_ticker_in_WTCH_NA, by = c("date")) |> 
-  mutate(weight = WTCH_NA_wt * wt_ticker_in_WTCH_NA) |> 
-  ungroup() |>
-  mutate(from = "WTCH_NA") |> 
-  select(date, portfolio, ticker, from, weight)
-
-# XDWH
 XDWH_GY_trr <- all_trr_eur_long |> filter(ticker == "XDWH_GY") |> ungroup() |>  select(date, XDWH_GY_trr = trr)
+IJPA_NA_trr <- all_trr_eur_long |> filter(ticker == "IJPA_NA") |> ungroup() |>  select(date, IJPA_NA_trr = trr)
+NTSCLBE_NA_trr <- all_trr_eur_long |> filter(ticker == "NTSCLBE_NA") |> ungroup() |>  select(date, NTSCLBE_NA_trr = trr)
+IJR_US_trr <- all_trr_eur_long |> filter(ticker == "IJR_US") |> ungroup() |>  select(date, IJR_US_trr = trr)
+VFEM_NA_trr <- all_trr_eur_long |> filter(ticker == "VFEM_NA") |> ungroup() |>  select(date, VFEM_NA_trr = trr)
 
-wt_ticker_in_XDWH_GY <-
+wt_hist_tickers_in_ETF <- function(ETF = "IWDA_NA") {
   all_trr_eur_long |> 
-  left_join(XDWH_GY_trr, by = "date") |> 
-  left_join(wt_ticker_in_XDWH_GY_snapshot_date, by = c("date", "ticker")) |> 
-  filter(ticker %in% single_stock_tickers) |> 
-  arrange(desc(date)) |> 
-  group_by(ticker) |> 
-  fill(wt_ticker_in_XDWH_GY_snapshot_date, .direction = "down") |>
-  mutate(adjustment = (1 + trr) / (1 + XDWH_GY_trr),
-         cum_adjustment = cumprod(adjustment), 
-         wt_ticker_in_XDWH_GY = ifelse(date == snapshot_date, wt_ticker_in_XDWH_GY_snapshot_date,
-                            wt_ticker_in_XDWH_GY_snapshot_date/cum_adjustment),
-         wt_ticker_in_XDWH_GY = ifelse(is.na(wt_ticker_in_XDWH_GY), 0, wt_ticker_in_XDWH_GY))
+  left_join(get(str_c(ETF, "_trr")), by = "date") |> 
+  #left_join(get(str_c("wt_hist_tickers_in_", ETF, "_snapshot_date")), by = c("date", "ticker")) |> 
+  left_join(wt_tickers_in_ETF_snapshot_date(ETF = ETF), by = c("date", "ticker")) |> 
+  filter(ticker %in% c(single_stocks_tickers, andere_etfs)) |> 
+   arrange(desc(date)) |> 
+   group_by(ticker) |> 
+  # fill(!!sym(str_c("wt_hist_tickers_in_", ETF, "_snapshot_date")), .direction = "down") |>
+   fill(wt_tickers_in_ETF_snapshot_date, .direction = "down") |>
+     mutate(adjustment = (1 + trr) / (1 + !!sym(str_c(ETF, "_trr"))),
+            cum_adjustment = cumprod(adjustment),
+            wt_hist_tickers_in_ETF = ifelse(date == snapshot_date, wt_tickers_in_ETF_snapshot_date,
+                            wt_tickers_in_ETF_snapshot_date/cum_adjustment),
+            ETF = !!ETF) |> 
+    select(date, ETF, ticker, wt_hist_tickers_in_ETF)
+}
 
-wt_from_XDWH_GY <-
-  portfolios_tabel |> 
-  filter(portfolio == "VP100", ticker %in% c("XDWH_GY")) |> 
-  select(date, portfolio, XDWH = ticker, XDWH_wt = weight) |> 
-  left_join(wt_ticker_in_XDWH_GY, by = c("date")) |> 
-  mutate(weight = XDWH_wt * wt_ticker_in_XDWH_GY) |> 
-  ungroup() |>
-  mutate(from = "XDWH") |> 
-  select(date, portfolio, ticker, from, weight)
+# wt_hist_tickers_sum_in_WTCH_NA <-
+#   wt_hist_tickers_in_ETF(ETF = "WTCH_NA") |> 
+#   group_by(date) |> 
+#   reframe(wt_hist_tickers_in_ETF = sum(wt_hist_tickers_in_ETF, na.rm = T))
+# DIT KLOPT, maar je kan er niks mee, want je kan niet veronderstellen dat de rest van de ETF dezelfde return heeft.
+# wt_hist_tickers_sum_in_XDWH_GY <-
+#   wt_hist_tickers_in_ETF(ETF = "XDWH_GY") |> 
+#   group_by(date) |> 
+#   reframe(wt_hist_tickers_in_ETF = sum(wt_hist_tickers_in_ETF, na.rm = T))
 
 
-
-##
-wt_ETF_in_portfolio <- function(portfolio = "VP100", ETF = "SPY5_GY") {
+wt_hist_ETF_in_portfolio <- function(portfolio = "VP100", ETF = "SPY5_GY") {
   dates |> 
   mutate(!!sym(ETF) := 0, portfolio = !!portfolio) |> 
   left_join(portfolios_tabel, by = c("date", "portfolio")) |> 
@@ -637,45 +570,61 @@ wt_ETF_in_portfolio <- function(portfolio = "VP100", ETF = "SPY5_GY") {
    select(date, portfolio, !!sym(ETF)) |>
    group_by(date) |>
    arrange(desc(!!sym(ETF))) |>
-   slice(1) #|>
-    #misschien filter(!is.na(!!sym(ticker))) 
+   slice(1) 
+}
+  
+wt_hist_tickers_from_naam <- function(portfolio = "VP100") {
+  #namen in portefeuille en gewicht
+  portfolios_tabel |> filter(portfolio == !!portfolio) |> 
+    filter(ticker %in% c(single_stocks_tickers, andere_etfs)) |> 
+    mutate(from = "naam") |> 
+    select(date, portfolio, ticker, weight, from)
 }
 
-wt_ticker_in_ETF <- function(portfolio = "VP100", ETF = "SPY5_GY") {
-  all_trr_eur_long |> 
-  left_join(get(str_c(ETF, "_trr")), by = "date") |> 
-  left_join(get(str_c("wt_ticker_in_", ETF, "_snapshot_date")), by = c("date", "ticker")) |> 
-  filter(ticker %in% single_stock_tickers) |> 
-   arrange(desc(date)) |> 
-   group_by(ticker) |> 
-   fill(!!sym(str_c("wt_ticker_in_", ETF, "_snapshot_date")), .direction = "down") |>
-    mutate(adjustment = (1 + trr) / (1 + !!sym(str_c(ETF, "_trr"))),
-            cum_adjustment = cumprod(adjustment))#, 
-   #         !!(str_c("wt_ticker_in_", ETF)) := ifelse(date == snapshot_date, !!sym(str_c("wt_ticker_in_", ETF, "_snapshot_date")),
-   #                           !!sym(str_c("wt_ticker_in_", ETF, "_snapshot_date"))/cum_adjustment),
-   #         wt_ticker_in_SPY5_GY = ifelse(is.na(wt_ticker_in_XDWH_GY), 0, wt_ticker_in_SPY5_GY))
+wt_hist_tickers_from_ETF <- function(portfolio = "VP100", ETF = "WTCH_NA") {
+  wt_hist_tickers_in_ETF(ETF = ETF) |> 
+    left_join(wt_hist_ETF_in_portfolio(portfolio = portfolio, ETF = ETF), by = c("date")) |> 
+    mutate(weight = wt_hist_tickers_in_ETF * !!sym(ETF), from = ETF) |> 
+    select(date, portfolio, ticker, weight, from)
+} 
+
+wt_hist_tickers_in_RD_portfolio <- function(portfolio = "VP100") {
+    pf_wt_RD_tabel <- 
+    attr_tabellen_RDRM_simple |> 
+    filter(portfolio == !!portfolio) |> 
+    select(date, portfolio, pf_wt_RD) |> 
+    #eerste datum is NA - oplossing is neem volgende datum
+    mutate(pf_wt_RD_temp = lead(pf_wt_RD),
+           pf_wt_RD = ifelse(is.na(pf_wt_RD), pf_wt_RD_temp, pf_wt_RD)) |> 
+    select(-pf_wt_RD_temp)
+    
+    #gewicht van tickers in portefeuille via de naam zelf
+    wt_hist_tickers_from_naam(portfolio = portfolio) |> 
+    #gewicht van tickers in portefeuille via de ETF's
+    bind_rows(wt_hist_tickers_from_ETF(portfolio = portfolio, ETF = "WTCH_NA")) |> 
+    bind_rows(wt_hist_tickers_from_ETF(portfolio = portfolio, ETF = "XDWH_GY")) |> 
+    #pf_wt_RD ernaast
+    left_join(pf_wt_RD_tabel, by = c("date", "portfolio")) |> 
+    #gewicht in RD berekenen
+    mutate(weight_in_RD = weight/pf_wt_RD,
+           weight_in_RD = ifelse(is.na(weight_in_RD), 0, weight_in_RD)) |>
+    select(date, portfolio, ticker, from, weight_in_RD)
 }
-##
 
-##  
+wt_hist_tickers_in_bm <- 
+  wt_hist_tickers_in_ETF(ETF = "IWDA_NA") |> 
+  rename(wt_hist_tickers_in_bm = wt_hist_tickers_in_ETF)
 
-#VP100
-wt_mag7s_in_VP100 <-
-  portfolios_tabel |> 
-  ungroup() |> 
-  filter(portfolio == "VP100", ticker %in% grote_tickers$ticker) |> 
-  mutate(from = "naam") |> 
-  select(date, portfolio, ticker, from, weight) |> 
-  bind_rows(wt_from_WTCH_NA)
- 
 ```
 
 
-### Gewicht Mag7 in MSDEWIN en in VP100
+### Gewicht Mag7 in MSDEWIN en in de modelportefeuille
+
+Het historische gewicht van aandelen in de MSDEWIN is te benaderen door de huidige market cap van beide te combineren met de historische rendementsontwikkeling. Het historische gewicht van aandelen in een sector-ETF (WTCH_NA en XDWH_GY) is te benaderen door dit te combineren met het historische gewicht van de sector in de MSDEWIN. Het totale gewicht is het gewicht in de naam plus het gewicht in de ETF maal het gewicht van de ETF in de portefeuille.
 
 ::: panel-tabset
 
-#### Mag7 in MSDEWIN
+#### Gewicht Mag7 in MSDEWIN
 
 ```{r gewicht_mag7_in_bm_historie_grafiek}
 #| column: page
@@ -684,26 +633,32 @@ wt_mag7s_in_VP100 <-
 #| warning: false
 #| 
 
-wt_ticker_in_bm |>
-  filter(date < snapshot_date, date >= "2017-06-30") |> 
-  filter(ticker %in% c(grote_tickers$ticker)) |>
-  select(date, ticker, wt_ticker_in_bm) |> 
-  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW"))) |> 
-  ggplot(aes(x=date, y = wt_ticker_in_bm, fill = ticker)) +
+wt_hist_tickers_in_bm |>
+  filter(date < snapshot_date, date >= drie_datums[1]) |> 
+  filter(ticker %in% c(mag7_tickers)) |>
+  select(date, ticker, wt_hist_tickers_in_bm) |> 
+  #kleuren voor fill identity
+  left_join(tickers_fills, by = "ticker") |> 
+  mutate(ticker = factor(ticker, levels = ticker_levels)) |> 
+  ggplot(aes(x=date, y = wt_hist_tickers_in_bm, fill = fill, group = ticker)) +
   geom_area(alpha = 0.9, position = "stack") +
-    theme_minimal() +
-  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.3)) +
-  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
+  theme_minimal() +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.09)) +
+  scale_fill_identity() +
+  facet_wrap(~ticker, ncol = 1) +
   labs(x = "", y = "",
        title = "gewicht Mag7 in MSDEWIN") +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
         legend.title = element_blank(),
-         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+        plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold")) 
+
 ```
 
-#### Mag7 in VP100
+#### Gewicht Mag7 in RD
+
+Het rechtstreekse gewicht in de naam plus het gewicht via de sector-ETF.
 
 ```{r gewicht_mag7_in_vp100_historie_grafiek}
 #| column: page
@@ -711,80 +666,313 @@ wt_ticker_in_bm |>
 #| fig-height: 7
 #| warning: false
 #| 
-
-wt_mag7s_in_VP100 |>
-  filter(date < snapshot_date, date >= "2017-06-30") |> 
-  filter(ticker %in% c(grote_tickers$ticker)) |>
-  mutate(from = factor(from, levels = c("naam", "WTCH_NA"))) |>
-  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW"))) |> 
-  ggplot(aes(x = date, y = weight, fill = ticker, alpha = from)) +
+wt_hist_tickers_in_RD_portfolio_chart <- function(portfolio = "VP100", tickers = mag7_tickers) {
+  wt_hist_tickers_in_RD_portfolio(portfolio = portfolio) |>
+  filter(date < snapshot_date, date >= drie_datums[1]) |> 
+  filter(ticker %in% c(tickers)) |>
+  mutate(from = factor(from, levels = c("naam", "WTCH_NA", "XDWH_GY"))) |>
+  #kleuren voor fill identity
+  left_join(tickers_fills, by = "ticker") |> 
+  mutate(ticker = factor(ticker, levels = ticker_levels)) |> 
+  ggplot(aes(x = date, y = weight_in_RD, fill = fill, alpha = from)) +
   geom_area(position = "stack") +
-    theme_minimal() +
-  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.3)) +
-  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
-  scale_alpha_manual(values = c(0.9, 0.7)) +
+  theme_minimal() +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis(), limits = c(0, 0.09)) +
+    facet_wrap(~ticker, ncol = 1) +
+  scale_fill_identity() +
+  scale_alpha_manual(values = c(0.9, 0.6, 0.3)) +
   labs(x = "", y = "",
-       title = "gewicht Mag7 in VP100") +
+       title = str_c("gewicht tickers in RD, ", portfolio)) +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
         legend.title = element_blank(),
-         plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+        plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+}
 
+wt_hist_tickers_in_RD_portfolio_chart(portfolio = "VP100")
 ```
 
-#### OU gewicht Mag7 in VP100
+#### OU gewicht Mag7 in RD
+
+Het rechtstreekse gewicht in de naam plus het gewicht via de sector-ETF minus het gewicht in de MSDEWIN. 
 
 ```{r mag7_OU_grafiel}
 #| column: page
 #| fig-width: 10
 #| fig-height: 7
 #| warning: false
-#| 
-wt_mag7s_in_VP100 |> 
+
+OU_wt_hist_tickers_in_RD_portfolio_chart <- function(portfolio = "VP100", tickers = mag7_tickers) {
+  wt_hist_tickers_in_RD_portfolio(portfolio = portfolio) |> 
   group_by(date, ticker) |>
-  reframe(weight = sum(weight, na.rm = TRUE)) |> 
-  left_join(wt_ticker_in_bm, by = c("date", "ticker")) |> 
-  mutate(OU_ticker = weight - wt_ticker_in_bm) |> 
-  select(date, ticker, weight, wt_ticker_in_bm, OU_ticker) |> 
-  filter(ticker %in% c(grote_tickers$ticker)) |>
-  mutate(ticker = factor(ticker, levels = c("META_UW", "AMZN_UW","TSLA_UW", "AAPL_UW", "NVDA_UW",  "MSFT_UW", "GOOGL_UW"))) |> 
-  ggplot(aes(x = date, y = OU_ticker, fill = ticker)) +
-  geom_line(aes(col = ticker), alpha = 0.7, linewidth = 2) +
-  scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", bmgray)) +
+  #uit zowel naam als ETF
+  reframe(weight_in_RD = sum(weight_in_RD, na.rm = TRUE)) |> 
+  #benchmark ernaast
+  left_join(wt_hist_tickers_in_bm, by = c("date", "ticker")) |> 
+  mutate(OU_ticker = weight_in_RD - wt_hist_tickers_in_bm) |> 
+  select(date, ticker, weight_in_RD, wt_hist_tickers_in_bm, OU_ticker) |> 
+  #kleuren voor fill identity
+  left_join(tickers_fills, by = "ticker") |> 
+  mutate(ticker = factor(ticker, levels = ticker_levels)) |> 
+  filter(ticker %in% mag7_tickers) |>
+  ggplot(aes(x = date, y = OU_ticker)) +
+  geom_line(aes(col = fill), alpha = 0.7, linewidth = 2) +
+  scale_color_identity() +
   geom_abline(aes(intercept = 0, slope = 0), alpha = 0.7) +
   scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
   facet_wrap(~ticker, ncol = 1) +
     labs(x = "", y = "",
-       title = "OU gewicht Mag7 in VP100") +
+       title = str_c("OU gewicht tickers in RD, ", portfolio)) +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "none",
         legend.title = element_blank(),
          plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"))
+}
 
+OU_wt_hist_tickers_in_RD_portfolio_chart(portfolio = "VP100", tickers = mag7_tickers)
+
+```
+
+#### Gewicht beschikbare tickers in MSDEWIN
+
+Het totale gewicht in de MSDEWIN van individuele namen die ooit in de portefeuille zijn opgenomen. DSM en RDSA zijn niet meer beschikbaar. Dit betreft zowel het rechtstreekse gewicht in de naam als het gewicht via de sector-ETF.
+
+```{r totaal_beschikbaar}
+#| column: page
+#| fig-width: 10
+#| fig-height: 7
+#| warning: false
+wt_hist_tickers_in_bm |>
+  filter(date <= snapshot_date, date >= drie_datums[1]) |> 
+  filter(!ticker %in% andere_etfs) |>
+  select(date, ticker, wt_hist_tickers_in_bm) |> 
+  #kleuren voor fill identity
+  left_join(tickers_fills, by = "ticker") |> 
+  mutate(ticker = factor(ticker, levels = ticker_levels)) |> 
+  ggplot(aes(x=date, y = wt_hist_tickers_in_bm, fill = fill, group = ticker)) +
+  geom_area(alpha = 0.9, position = "stack") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
+  scale_fill_identity() +
+  #facet_wrap(~ticker, ncol = 1) +
+  labs(x = "", y = "",
+       title = "gewicht van beschikbare tickers") +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold")) 
 ```
 
 :::
 
 ### Verklaring aandelenselectieresultaat
 
-```{r}
+Hebben de Mag7 een disproportioneel effect gehad op de portefeuille? Het aandelenselectieresultaat is het verschil tussen de gewichten in de portefeuille en die in de benchmark vermenigvuldigd met het verschil in performance van het aandeel en de benchmark. Dit wordt voor elke maand berekend en vervolgens opgeteld. De resultaten zijn in procenten van het RD-deel van de portefeuille.
+
+::: panel-tabset
+
+#### Mag7
+
+De eerste periode voor de Mag7 aandelen is positief, de tweede periode negatief. Over de hele periode dragen Apple en Google positief bij, de overige negatief. Per saldo (zie de tab "Totaal") is het effect van de Mag7 ongeveer neutraal. De Mag7 hebben dus geen disproportioneel effect gehad op de portefeuille. Tussentijds wel een duidelijk, maar niet disproportioneel effect.
+
+```{r sel_ff_periode1_mag7_bars}
 #| column: page
+#| fig-width: 10
+#| fig-height: 3
 #| warning: false
 
+sel_ff_tabel_ind_aandelen <- function(portfolio = "VP100") {
+  #tabel met sel_ff in RD per periode per ticker voor portfolio
+  #ex_WTCH en XDWH, IJPA wel en Small Cap ETF's
+  wt_hist_tickers_in_RD_portfolio(portfolio = portfolio) |> 
+  group_by(date, ticker) |> 
+  #gewicht ETF en naam bij elkaar optellen
+  reframe(weight_in_RD = sum(weight_in_RD, na.rm = TRUE)) |> 
+  group_by(ticker) |> 
+  #gewicht in bm ernaast
+  left_join(wt_hist_tickers_in_bm, by = c("ticker", "date")) |> 
+  #ou gewicht
+  mutate(OU_wt = weight_in_RD - wt_hist_tickers_in_bm) |> 
+  #trr's tickers en bm en ernaast
+  left_join(all_trr_eur_long, by = c("date", "ticker")) |> 
+  left_join(MSDEWIN_trr, by = c("date")) |> 
+  filter(date >= drie_datums[1]) |> 
+  #sel-ff berekenen per ticker per periode
+  mutate(sel_ff = ifelse(date == start_date_vp_vf, 0, 
+                         lag(OU_wt) * ((1+trr)/(1+MSDEWIN_trr) - 1)))
+}
 
+sel_ff_tabel_periode_tickers_selectie <- function(portfolio = "VP100", start_date = drie_datums[1], end_date = drie_datums[2], tickers = mag7_tickers) {
+  periode <- periode_tabel |> filter(periode_start == start_date, periode_einde == end_date) |> pull(periode)
+    sel_ff_tabel_ind_aandelen(portfolio = portfolio) |> 
+    filter(date > start_date, date <= end_date,
+           ticker %in% tickers) |> 
+    group_by(ticker) |> 
+    summarise(sel_ff_periode = sum(sel_ff, na.rm = TRUE)) |> 
+    mutate(periode = periode) |> 
+    ungroup()
+}
+
+sel_ff_tabel_portfolio_tickers_2periodes <- function(portfolio = "VP100", tickers = mag7_tickers) {
+            sel_ff_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[2], tickers = tickers) |>
+  bind_rows(sel_ff_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[2], end_date = drie_datums[3], tickers = tickers)) |> 
+  bind_rows(sel_ff_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[3], tickers = tickers)) |> 
+  left_join(tickers_fills, by = "ticker") |>
+  mutate(ticker = factor(ticker, levels = ticker_levels)) |> 
+  mutate(periode = factor(periode, levels = periode_tabel$periode)) 
+}
 
 ```
 
-Het positieve aandelenselectieresultaat in de eerste periode komt van een aantal namen die het goed deden in die periode (DSM, Visa, United Health, Pfizer, WTCH). Mag7 namen die het goed deden en ook in portefeuille waren zijn Apple, Google, direct en via WTCH. Nvidia en Tesla waren niet in portefeuille, maar met name Nvidia had ook nog geen groot gewicht in de index.
+```{r sel_ff_periode1_en_2_mag7totaal_bars}
+#| column: page
+#| fig-width: 10
+#| fig-height: 2.5
+#| warning: false
 
-Het negatieve aandelenselectieresultaat in de tweede periode komt door namen in portefeuille die het slecht deden (Intel, Kering, Pfizer, en United Health) en door het (nog) niet hebben van een paar Mag7’s (Nvidia, Meta, Amazon en Tesla). Nvidia en Tesla zijn pas eind 2024 opgenomen in de portefeuille. 
+sel_ff_periode1_en_2_totaal_chart <- function(portfolio = "VP100", tickers = mag7_tickers) {
+  
+  titeldeel <- case_when("NVDA_UW" %in% tickers ~ "Mag7",
+                         "IJR_US" %in% tickers ~ "Andere ETFs",
+                         TRUE ~ "Andere aandelen")
+  
+  sel_ff_tabel_portfolio_tickers_2periodes(portfolio = portfolio, tickers = tickers) |>
+  filter(ticker %in% tickers) |>
+  mutate(ticker = factor(ticker, levels = rev(ticker_levels))) |> 
+  ggplot(aes(x = ticker, y = sel_ff_periode, alpha = periode, fill = fill)) +
+  geom_col(size = .5, col = "gray40") +
+  facet_wrap(~periode, ncol = 3, strip.position = "bottom", scales = "free") +
+  coord_flip() +
+  scale_fill_identity() +
+  # scale_color_identity() +
+  # scale_size_identity() +
+  scale_alpha_manual(values = c(1, 1, 1)) +
+  scale_y_continuous(labels = percent_format(), limits = c(-0.035, 0.045), sec.axis = dup_axis()) +
+  labs(x = "", y = "", title = str_c("aandelenselectieresultaat ", titeldeel, " in RD," ,  portfolio)) +
+  charts_custom_theme +
+  theme_minimal() +
+  theme(legend.position = "none",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),
+        strip.text = element_text(face = "bold", size = 12),
+        strip.placement = "outside") 
+}
 
-De portefeuille had geen exposure naar Nvidia, Meta, Amazon en Tesla, mede omdat deze ook niet in de WTCH voorkomen.
+sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100", tickers = mag7_tickers)
+```
 
-### Meer individuele aandelen
-Om in een Mag7 scenario, ervan uitgaande dat je van tevoren niet weet welke die Mag7 zijn, de index bij te houden (een lage tracking error) zul je er niet 15-30 moeten hebben maar eerder honderden. Simulatie over een lange periode, universum is ACWI.
+#### Andere aandelen
+
+Voor de *Andere aandelen* is de eerste periode een mix van positieve en negatieve bijdragen. Per saldo licht positief. In sommige gevallen (bijv. UNH en PFE) draait het positieve resultaat in de tweede periode naar sterk negatief. In IT is de bijdrage in alle gevallen negatief. De tweede periode is sterk negatief. Per saldo (zie de tab "Totaal") is het effect van de *Andere aandelen* sterk negatief.
+
+Er zijn aandelen bij die niet in portefeuille zijn geweest, maar waarvan wel koersen zijn gedownload. Dit betreft LLY in Health Care en NFLX in Communication Services. Een paar aandelen zijn niet meer beschikbaar, zoals DSM (positieve bijdrage) en RDSA.
+
+```{r sel_ff_periode1_en_2_othertotaal_bars2}
+#| column: page
+#| fig-width: 10
+#| fig-height: 8
+#| warning: false
+
+sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100",  tickers = single_stocks_tickers[-which(single_stocks_tickers %in% mag7_tickers)])
+```
+
+#### Andere ETFs
+
+De small cap ETFs dragen enigszins negatief bij, de regio ETFs enigszins positief. Alleen de Japan ETF heeft een benchmarkgewicht. De bijdragen van de ETFs is relatief gering ten opzichte van veel individuele aandelen.
+
+De ETFs WTCH_NA en XDWH_GY komen hier niet in voor omdat deze via een aantal individuele namen deels tot uitdrukking komen. Het zou leiden tot dubbeltellen.
+
+```{r sel_ff_periode1_en_2_othertotaal_bars3}
+#| column: page
+#| fig-width: 10
+#| fig-height: 2
+#| warning: false
+
+sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100",  tickers = andere_etfs)
+```
+
+#### Totaal
+
+De bijdrage van de Mag7, de *Andere aandelen* en de *Andere ETFs* samen, minus het totale selectieresultaat in RD geeft een "Overige" categorie. De MSDEWIN bevat 1350 aandelen, waarvan 180 Japanse. De Overige categorie bevat dus enerzijds het gedeelte WTCH_NA (positief) en XDWH_GY (negatief) die niet in de Mag7 en *Andere aandelen* voorkomen, maar ook alle overige ongeveer 1150 aandelen in de index. Dit zal een mix zijn van positieve en negatieve bijdragen, maar is dus per saldo positief. De gemiddelde market cap van deze Overige zal een stuk kleiner zijn dan het gemiddelde, dus het kan onder andere een market cap effect zijn. Met andere woorden, onderwogen lagere market cap.
+
+Het Totaal is het totale selectieresultaat in RD. Voor de hele periode is dat negatief, maar minder negatief dan het allocatieresultaat op portefeuileniveau.
+
+
+```{r sel_ff_periode1_en_2_subtotalen_en totaal_bars}
+#| column: page
+#| fig-width: 10
+#| fig-height: 2.5
+#| warning: false
+
+sel_ff_periode1_en_2_totaal_categorieen_chart <- function(portfolio = "VP100") {
+  #Mag7
+  other_stocks_sel_ff_tabel <- sel_ff_tabel_portfolio_tickers_2periodes(portfolio = portfolio, tickers = single_stocks_tickers_ex_mag7) |> 
+    group_by(periode) |> 
+    summarise(ticker = "Andere aandelen", sel_ff_periode = sum(sel_ff_periode)) |> 
+    select(ticker, sel_ff_periode, periode)
+  
+  #Mag7
+  mag7_sel_ff_tabel <- sel_ff_tabel_portfolio_tickers_2periodes(portfolio = portfolio, tickers = mag7_tickers) |> 
+    group_by(periode) |> 
+    summarise(ticker = "Mag7", sel_ff_periode = sum(sel_ff_periode)) |> 
+    select(ticker, sel_ff_periode, periode)
+  
+  #andere_etfs
+  andere_etfs_sel_ff_tabel <- 
+    sel_ff_tabel_portfolio_tickers_2periodes(portfolio = portfolio, tickers = andere_etfs) |> 
+    group_by(periode) |> 
+    summarise(ticker = "Andere ETFs", sel_ff_periode = sum(sel_ff_periode)) |> 
+    select(ticker, sel_ff_periode, periode)
+  
+  #totaal
+  sel_ff_RD_periode1 <- attr_tabel_RDRM_simple(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[2]) |> tail(1) |> pull(sel_ff_RD_cum) 
+  sel_ff_RD_periode2 <- attr_tabel_RDRM_simple(portfolio = portfolio, start_date = drie_datums[2], end_date = drie_datums[3]) |> tail(1) |> pull(sel_ff_RD_cum) 
+  sel_ff_RD_periode3 <- attr_tabel_RDRM_simple(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[3]) |> tail(1) |> pull(sel_ff_RD_cum) 
+  
+  totaal_2periodes_sel_ff_tabel <- tibble(ticker = "Totaal", 
+                     sel_ff_periode = c(sel_ff_RD_periode1, sel_ff_RD_periode2, sel_ff_RD_periode3),
+                     periode = periode_levels)
+  
+  bind_rows(mag7_sel_ff_tabel, other_stocks_sel_ff_tabel, andere_etfs_sel_ff_tabel, totaal_2periodes_sel_ff_tabel) |> 
+    #wijder om overig euit te rekenen
+    pivot_wider(names_from = ticker, values_from = sel_ff_periode) |> 
+    mutate(Overige = Totaal - Mag7 - `Andere aandelen` - `Andere ETFs`) |> 
+    ##langer voor plot
+    pivot_longer(names_to = "ticker", cols = -periode) |> 
+    rename(sel_ff_periode = value) |> 
+    select(ticker, sel_ff_periode, periode) |> 
+    left_join(tickers_fills, by = "ticker") |> 
+    mutate(ticker = factor(ticker, levels = rev(c("Mag7", "Andere aandelen", "Andere ETFs", "Overige", "Totaal"))),
+           periode = factor(periode, levels = periode_levels)) |> 
+  ggplot(aes(x = ticker, y = sel_ff_periode, alpha = periode, fill = fill)) +
+    geom_col(col = "gray40") +
+    facet_wrap(~periode, ncol = 3, strip.position = "bottom", scales = "free") +
+    coord_flip() +
+    scale_fill_identity() +
+    scale_color_identity() +
+    scale_size_identity() +
+    scale_alpha_manual(values = c(0.8, 0.8, .8)) +
+    scale_y_continuous(labels = percent_format(), limits = c(-0.2, 0.2), sec.axis = dup_axis()) +
+    labs(x = "", y = "", title = str_c("aandelenselectieresultaat in RD, ", portfolio)) +
+    charts_custom_theme +
+    theme_minimal() +
+    theme(legend.position = "none",
+          legend.title = element_blank(),
+          plot.title = element_text(hjust = 0.5, vjust = 0, face = "bold"),
+          strip.text = element_text(face = "bold", size = 12),
+          strip.placement = "outside") 
+} 
+
+sel_ff_periode1_en_2_totaal_categorieen_chart(portfolio = "VP100")
+```
+
+:::
+
+### Meer individuele aandelen?
+Om in een Mag7 scenario, ervan uitgaande dat je van tevoren niet weet welke die Mag7 zijn, de index bij te houden (een lage tracking error) zul je er niet 15-30 moeten hebben maar eerder honderden. Nieuw artikel, simulatie over een lange periode, universum is ACWI.
 
 ![Bron: "FOMO in equity markets? Concentration risk in (sustainable) investing", Andreas Brøgger, Joren Koëter, and Mathijs van Dijk, June 2025, pagina 37, Panel D](Picture1.png){fig-align="center" width="60%"}
 
@@ -795,11 +983,14 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen.
 - Goede performance
 - De portefeuille is goed gespreid, met een volatiliteit dicht bij die van de benchmark.
 - Ten opzichte van de benchmark is er sprake van een underperformance
-  - De belangrijkste oorzaak is dat de portefeuille niet vol belegd was.
+  - De belangrijkste oorzaak is dat de portefeuille niet steeds vol belegd was.
   - Daarnaast zorgt de aandelenselectie voor de grootste tussentijdse verschillen.
+  - Daarbinnen gaat het vooral om de *Andere aandelen*.
+  - De *Mag7* hebben geen disproportioneel effect gehad op de portefeuille.
 - Als
   - “het bijhouden van de index” behoort tot de doelstellingen van de portefeuille en
   - je rekening wilt houden met een "Mag7 scenario",
+  - de impact van een individuele aandelenkeuze op de portefeuille beperkt moet blijven,
   - dan moeten er meer individuele aandelen en/of trackers opgenomen worden.
 
 
