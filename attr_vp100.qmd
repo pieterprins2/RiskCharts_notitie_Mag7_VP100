@@ -624,7 +624,7 @@ Het historische gewicht van aandelen in de MSDEWIN is te benaderen door de huidi
 
 ::: panel-tabset
 
-#### Gewicht Mag7 in MSDEWIN
+#### Mag7 in MSDEWIN
 
 ```{r gewicht_mag7_in_bm_historie_grafiek}
 #| column: page
@@ -656,7 +656,7 @@ wt_hist_tickers_in_bm |>
 
 ```
 
-#### Gewicht Mag7 in RD
+#### Mag7 in RD
 
 Het rechtstreekse gewicht in de naam plus het gewicht via de sector-ETF.
 
@@ -693,7 +693,7 @@ wt_hist_tickers_in_RD_portfolio_chart <- function(portfolio = "VP100", tickers =
 wt_hist_tickers_in_RD_portfolio_chart(portfolio = "VP100")
 ```
 
-#### OU gewicht Mag7 in RD
+#### OU Mag7 in RD
 
 Het rechtstreekse gewicht in de naam plus het gewicht via de sector-ETF minus het gewicht in de MSDEWIN. 
 
@@ -735,7 +735,7 @@ OU_wt_hist_tickers_in_RD_portfolio_chart(portfolio = "VP100", tickers = mag7_tic
 
 ```
 
-#### Gewicht beschikbare tickers in MSDEWIN
+#### Beschikbare tickers in MSDEWIN
 
 Het totale gewicht in de MSDEWIN van individuele namen die ooit in de portefeuille zijn opgenomen. DSM en RDSA zijn niet meer beschikbaar. Dit betreft zowel het rechtstreekse gewicht in de naam als het gewicht via de sector-ETF.
 
@@ -749,8 +749,8 @@ wt_hist_tickers_in_bm |>
   filter(!ticker %in% andere_etfs) |>
   select(date, ticker, wt_hist_tickers_in_bm) |> 
   #kleuren voor fill identity
-  left_join(tickers_fills, by = "ticker") |> 
-  mutate(ticker = factor(ticker, levels = ticker_levels)) |> 
+  left_join(tickers_fills |> mutate(fill = ifelse(ticker %in% mag7_tickers, fill, ba_color)), by = "ticker") |> 
+  mutate(ticker = factor(ticker, levels = rev(c(mag7_tickers, ticker_levels[-which(ticker_levels %in% mag7_tickers)])))) |> 
   ggplot(aes(x=date, y = wt_hist_tickers_in_bm, fill = fill, group = ticker)) +
   geom_area(alpha = 0.9, position = "stack") +
   theme_minimal() +
@@ -896,7 +896,7 @@ sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100",  tickers = andere_etfs)
 
 #### Totaal
 
-De bijdrage van de Mag7, de *Andere aandelen* en de *Andere ETFs* samen, minus het totale selectieresultaat in RD geeft een "Overige" categorie. De MSDEWIN bevat 1350 aandelen, waarvan 180 Japanse. De Overige categorie bevat dus enerzijds het gedeelte WTCH_NA (positief) en XDWH_GY (negatief) die niet in de Mag7 en *Andere aandelen* voorkomen, maar ook alle overige ongeveer 1150 aandelen in de index. Dit zal een mix zijn van positieve en negatieve bijdragen, maar is dus per saldo positief. De gemiddelde market cap van deze Overige zal een stuk kleiner zijn dan het gemiddelde, dus het kan onder andere een market cap effect zijn. Met andere woorden, onderwogen lagere market cap.
+De bijdrage van de Mag7, de *Andere aandelen* en de *Andere ETFs* samen, minus het totale selectieresultaat in RD geeft een "Overige" categorie. De MSDEWIN bevat 1350 aandelen, waarvan 180 Japanse. De Overige categorie bevat dus enerzijds het gedeelte WTCH_NA (positief) en XDWH_GY (negatief) die niet in de Mag7 en *Andere aandelen* voorkomen, maar ook alle overige ongeveer 1150 aandelen in de index. Dit is dus per saldo positief. De gemiddelde market cap van deze Overige is een stuk kleiner dan het gemiddelde, dus het kan onder andere een market cap effect zijn. Met andere woorden, onderwogen lagere market cap was positief.
 
 Het Totaal is het totale selectieresultaat in RD. Voor de hele periode is dat negatief, maar minder negatief dan het allocatieresultaat op portefeuileniveau.
 
@@ -983,14 +983,18 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen.
 - Goede performance
 - De portefeuille is goed gespreid, met een volatiliteit dicht bij die van de benchmark.
 - Ten opzichte van de benchmark is er sprake van een underperformance
-  - De belangrijkste oorzaak is dat de portefeuille niet steeds vol belegd was.
+  - De belangrijkste oorzaak is dat de portefeuille niet steeds vol belegd was (het allocatie-effect)
   - Daarnaast zorgt de aandelenselectie voor de grootste tussentijdse verschillen.
-  - Daarbinnen gaat het vooral om de *Andere aandelen*.
+- Binnen aandelenselectie
   - De *Mag7* hebben geen disproportioneel effect gehad op de portefeuille.
+  - De *Andere ETFs*, naast WTCH en XDWH, hebben ook maar een kleine negatieve bijdrage
+  - Vooral de *Andere aandelen* hebben een negatief effect gehad op de portefeuille
+  - De *Overige* categorie, de overige 1150 aandelen in de MSDEWIN, hebben een positief effect gehad op de portefeuille.
+  
 - Als
   - “het bijhouden van de index” behoort tot de doelstellingen van de portefeuille en
   - je rekening wilt houden met een "Mag7 scenario",
-  - de impact van een individuele aandelenkeuze op de portefeuille beperkt moet blijven,
+  - de impact van een individuele aandelenkeuze op de portefeuille (geluk resp. pech) beperkt moet blijven,
   - dan moeten er meer individuele aandelen en/of trackers opgenomen worden.
 
 
