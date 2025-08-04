@@ -1,5 +1,5 @@
 ---
-title: " Individuele aandelen: “voldoende spreiding“ vs. “de index bijhouden”"
+title: "Attributie Individuele aandelen: “voldoende spreiding“ vs. “de index bijhouden”"
 format: 
   html:
     embed-resources: true  
@@ -119,7 +119,7 @@ drie_datums <- c("2017-06-30", "2022-12-31", as.character(snapshot_date))
 
 snaphot_date_day_month_year <- drie_datums[3] |> as.Date() |> format("%d-%b-%Y")
 
-periode_levels <- c("Jul-2017 t/m 2022", str_c("2023 t/m ", snaphot_date_day_month_year), "hele periode")
+periode_levels <- c("30-Jun-2017 t/m 2022", str_c("2023 t/m ", snaphot_date_day_month_year), "hele periode")
 periode_einde_levels <- c(as.Date("2022-12-31"), as.Date(drie_datums[3]), as.Date(drie_datums[3]))
 
 periode_tabel <- 
@@ -320,7 +320,7 @@ chart_attr_effecten_RDRM_portfolio <- function(start_date = start_date_vp_vf, en
               plot.title = element_text(hjust = 0.5))
 }
 
-chart_attr_effecten_RDRM_portfolio(portfolio = "VP100")
+chart_attr_effecten_RDRM_portfolio(portfolio = "RD50")
 ```
 
 Het grootste deel van de relatieve performance over de gehele periode is het allocatieresultaat.
@@ -788,7 +788,7 @@ sel_ff_tabel_ind_aandelen <- function(portfolio = "VP100") {
   #tabel met sel_ff in RD per periode per ticker voor portfolio
   #ex_WTCH en XDWH, IJPA wel en Small Cap ETF's
   wt_hist_tickers_in_RD_portfolio(portfolio = portfolio) |> 
-  group_by(date, ticker) |> 
+  group_by(date, ticker, portfolio) |> 
   #gewicht ETF en naam bij elkaar optellen
   reframe(weight_in_RD = sum(weight_in_RD, na.rm = TRUE)) |> 
   group_by(ticker) |> 
@@ -805,9 +805,42 @@ sel_ff_tabel_ind_aandelen <- function(portfolio = "VP100") {
                          lag(OU_wt) * ((1+trr)/(1+MSDEWIN_trr) - 1)))
 }
 
-sel_ff_tabel_periode_tickers_selectie <- function(portfolio = "VP100", start_date = drie_datums[1], end_date = drie_datums[2], tickers = mag7_tickers) {
+sel_ff_RD_tabel_ind_aandelen_vps <- map_dfr(c("VP100", "VP50", "VD50"), sel_ff_tabel_ind_aandelen)
+
+sel_ff_tabel_tickers_selectie_start_end <- function(portfolio = "VP100", start_date = last_ultimo_year, end_date = snapshot_date, tickers = c(single_stocks_tickers, andere_etfs)) {
+  #totaal sel_ff in RD
+  sel_ff_total_cum_portfolio_start_end <- 
+    attr_tabellen_pfs_sector_Bs_Ae_Se |> 
+    filter(portfolio == !!portfolio, date > start_date, date <= end_date) |>
+    summarise(sel_ff = sum(er)) |>
+    mutate(ticker = "Totaal", sel_ff = sel_ff, portfolio = portfolio, start_date = start_date, end_date = end_date) |> select(ticker, sel_ff, portfolio, start_date, end_date)
+  #tabel met sel_ff in RD per ticker
+  sel_ff_tabel_ind_aandelen_portfolio_start_end <-
+    sel_ff_RD_tabel_ind_aandelen_vps |> 
+    filter(portfolio == !!portfolio) |> 
+    filter(date > start_date, date <= end_date,
+           ticker %in% tickers) |> 
+    group_by(ticker) |> 
+    summarise(sel_ff = sum(sel_ff, na.rm = TRUE)) |> 
+    mutate(portfolio = portfolio, start_date = start_date, end_date = end_date) |> 
+    ungroup()
+  #totaal sel_ff in RD van tickers
+  sel_ff_total_cum_tickers_start_end <- 
+    sel_ff_tabel_ind_aandelen_portfolio_start_end |> 
+    summarise(ticker = "SubTotaal", sel_ff = sum(sel_ff, na.rm = TRUE)) |> 
+    mutate(portfolio = portfolio, start_date = start_date, end_date = end_date) |> 
+    ungroup()
+  
+  bind_rows(sel_ff_tabel_ind_aandelen_portfolio_start_end, sel_ff_total_cum_tickers_start_end, sel_ff_total_cum_portfolio_start_end) |> pivot_wider(names_from = ticker, values_from = sel_ff) |> 
+    mutate(Overige = Totaal - SubTotaal) |> 
+    pivot_longer(names_to = "ticker", cols = -c(portfolio, start_date, end_date)) |> 
+    select(ticker, sel_ff = value, portfolio, start_date, end_date) 
+}
+
+sel_ff_RD_tabel_periode_tickers_selectie <- function(portfolio = "VP100", start_date = drie_datums[1], end_date = drie_datums[2], tickers = mag7_tickers) {
   periode <- periode_tabel |> filter(periode_start == start_date, periode_einde == end_date) |> pull(periode)
-    sel_ff_tabel_ind_aandelen(portfolio = portfolio) |> 
+    sel_ff_RD_tabel_ind_aandelen_vps |> 
+    filter(portfolio == !!portfolio) |> 
     filter(date > start_date, date <= end_date,
            ticker %in% tickers) |> 
     group_by(ticker) |> 
@@ -816,10 +849,21 @@ sel_ff_tabel_periode_tickers_selectie <- function(portfolio = "VP100", start_dat
     ungroup()
 }
 
+sel_ff_RD_tabel_portfolio_tickers_selectie_from_to <- function(portfolio = "VP100", start_date = drie_datums[1], end_date = drie_datums[2], tickers = mag7_tickers) {
+    sel_ff_RD_tabel_ind_aandelen_vps |> 
+    filter(portfolio == !!portfolio) |> 
+    filter(date > start_date, date <= end_date, ticker %in% tickers) |> 
+    group_by(ticker) |> 
+    summarise(sel_ff = sum(sel_ff, na.rm = TRUE)) |> 
+    mutate(portfolio = portfolio, start_date = start_date, end_date = end_date) |> 
+    ungroup()
+}
+
+
 sel_ff_tabel_portfolio_tickers_2periodes <- function(portfolio = "VP100", tickers = mag7_tickers) {
-            sel_ff_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[2], tickers = tickers) |>
-  bind_rows(sel_ff_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[2], end_date = drie_datums[3], tickers = tickers)) |> 
-  bind_rows(sel_ff_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[3], tickers = tickers)) |> 
+            sel_ff_RD_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[2], tickers = tickers) |>
+  bind_rows(sel_ff_RD_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[2], end_date = drie_datums[3], tickers = tickers)) |> 
+  bind_rows(sel_ff_RD_tabel_periode_tickers_selectie(portfolio = portfolio, start_date = drie_datums[1], end_date = drie_datums[3], tickers = tickers)) |> 
   left_join(tickers_fills, by = "ticker") |>
   mutate(ticker = factor(ticker, levels = ticker_levels)) |> 
   mutate(periode = factor(periode, levels = periode_tabel$periode)) 
