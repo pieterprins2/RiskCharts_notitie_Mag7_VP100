@@ -320,7 +320,7 @@ chart_attr_effecten_RDRM_portfolio <- function(start_date = start_date_vp_vf, en
               plot.title = element_text(hjust = 0.5))
 }
 
-chart_attr_effecten_RDRM_portfolio(portfolio = "RD50")
+chart_attr_effecten_RDRM_portfolio(portfolio = "VP100")
 ```
 
 Het grootste deel van de relatieve performance over de gehele periode is het allocatieresultaat.
