@@ -5305,20 +5305,14 @@
     }
   },
   "files": {
-    "attr_vp100_files/figure-html/sd_VP100_en_BM-1.png": {
-      "checksum": "e034d195219ba42e993f31da64d0dcb1"
-    },
-    "attr_vp100_files/figure-html/waarde-ontwikkeling_portfolio_en_msdewin_grafiek-1.png": {
-      "checksum": "e3be9a8b6e32a98a62cb0d8541449688"
-    },
     "attr_vp100.html": {
-      "checksum": "e49ab20329e2d9dc65eda96af6462868"
+      "checksum": "1c032f15c4a363f7d74ac8865ea46168"
     },
     "attr_vp100.qmd": {
-      "checksum": "d81e790d015e7f63efb9774960154be7"
+      "checksum": "52fbf629cd21837ead04c9c1585885c7"
     },
     "attr_vp100.rmarkdown": {
-      "checksum": "9f37014a0af36e3a1ad08819640c0d1a"
+      "checksum": "4a7f19d6cfbd2a701e8ed634447f7105"
     },
     "Picture1.png": {
       "checksum": "65c0d654bb7ef3731003b5ff35e507ee"
@@ -5327,7 +5321,7 @@
       "checksum": "86ce5dff76bc9f017ed3f9362885b5a9"
     },
     "RiRe.RData": {
-      "checksum": "04fcd33e0bdd2a5f0f0178f578b632a7"
+      "checksum": "fcf1616999549899162d7c8cd637b82f"
     }
   },
   "users": null
