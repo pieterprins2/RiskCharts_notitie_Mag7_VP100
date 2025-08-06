@@ -1045,7 +1045,9 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen. 
   - De *Andere ETFs*, naast WTCH en XDWH, (Small Caps, EM en Japan) hebben ook maar een kleine  bijdrage
   - Vooral de *Andere aandelen* hebben een negatief effect gehad op de portefeuille
   - De *Overige* categorie, de overige 1150 aandelen in de MSDEWIN, waarin niet is belegd, hebben een positief effect gehad op de portefeuille.
-  
+
+### Conclusie
+
 - Als
   - “het bijhouden van de index” behoort tot de doelstellingen van de portefeuille en
   - je rekening wilt houden met (nog) een "Mag7 scenario",
