@@ -1,5 +1,5 @@
 ---
-title: "Attributie Individuele Aandelen"
+title: "Attributie Individuele Aandelen VP"
 format: 
   html:
     embed-resources: true  
