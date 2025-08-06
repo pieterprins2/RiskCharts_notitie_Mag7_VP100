@@ -118,6 +118,7 @@ ticker_levels <- tickers_fills$ticker
 drie_datums <- c("2017-06-30", "2022-12-31", as.character(snapshot_date))
 
 snaphot_date_day_month_year <- drie_datums[3] |> as.Date() |> format("%d-%b-%Y")
+start_date_vp_format <- drie_datums[1] |> as.Date() |> format("%d-%b-%Y")
 
 periode_levels <- c("30-Jun-2017 t/m 2022", str_c("2023 t/m ", snaphot_date_day_month_year), "hele periode")
 periode_einde_levels <- c(as.Date("2022-12-31"), as.Date(drie_datums[3]), as.Date(drie_datums[3]))
@@ -146,7 +147,7 @@ outperformance_tekst_VP100 <- outperformance_tekst(portfolio = "VP100")
 
 #### Waarde-ontwikkeling modelportefeuille en MSDEWIN
 
-De VP100 laat een mooie waarde-ontwikkeling zien. Vanaf de start eind juni 2017 t/m juni 2025 een bruto performance van `r perf_portfolio_tekst_VP100`. De performance van de benchmark in die periode is `r perf_BM_tekst_VP100`.
+De VP100 laat een mooie waarde-ontwikkeling zien. Van `r start_date_vp_format` t/m `r snapshot_date_format` een bruto performance van `r perf_portfolio_tekst_VP100`. De performance van de benchmark in die periode is `r perf_BM_tekst_VP100`.
 
 ```{r waarde-ontwikkeling_portfolio_en_msdewin_grafiek}
 #| warning: false
@@ -161,9 +162,7 @@ ontwikkeling_portfolio_en_msdewin_grafiek <- function(portfolio = "VP100") {
   scale_color_manual(values = c(VP100green, bmgray)) +
   scale_y_continuous(labels = percent_format(), sec.axis = dup_axis()) +
   labs(x = "", y = "",
-       title = str_c(portfolio, " vs. MSDEWIN van ",  
-                          day(start_date_vp_vf),"-", month(start_date_vp_vf, label = TRUE), "-", year(start_date_vp_vf), " t/m ",
-                          day(drie_datums[3]),"-", month(drie_datums[3], label = TRUE), "-", year(drie_datums[3]))) +
+       title = str_c(portfolio, " vs. MSDEWIN van ", start_date_vp_format, " t/m ", snapshot_date_format)) +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
@@ -179,9 +178,10 @@ Over de hele periode is sprake van een relatieve performance ("geometrisch" bere
 
 #### Spreiding
 
-Hoeveel individuele aandelen zijn er nodig voor een “goed gespreide portefeuille”? Het antwoord is enkele tientallen. Meer dan dat voegt weinig extra spreiding toe. Meer spreiding uit zich in een lagere volatiliteit (standaarddeviatie).
+Hoeveel individuele aandelen zijn er nodig voor een “goed gespreide portefeuille”? Het antwoord is doorgaans enkele tientallen. Meer dan dat voegt weinig extra spreiding toe. Meer spreiding uit zich in een lagere volatiliteit (standaarddeviatie). Meer aandelen levert geen lagere standaarddeviatie op.
 
 In de volgende figuur de volatiliteit (standaarddeviatie) van de portefeuille vs. die van de index.
+
 ```{r sd_VP100_en_BM}
 #| warning: false
 #| column: page
@@ -239,7 +239,7 @@ sd_pf_RD_vs_MSDEWIN_grafiek <- function(portfolio = "VP100") {
 sd_pf_RD_vs_MSDEWIN_grafiek(portfolio = "VP100")
 ```
 
-Het RD-deel van de portefeuille heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille dus goed gespreid.
+Het RD-deel van de portefeuille (dus ex-cash) heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille dus goed gespreid.
 
 #### Tracking error
 
@@ -282,11 +282,11 @@ verschillen_per_maand_grafiek <- function(portfolio = "VP100") {
 
 verschillen_per_maand_grafiek(portfolio = "VP100")
 ```
-De volatiliteit is ongeveer hetzelfde als die van de index, maar de tracking error is desondanks hoog te noemen.
+De volatiliteit is ongeveer hetzelfde als die van de index, maar de tracking error is desondanks hoog te noemen. Er zitten ongetwijfeld data-effecten tussen de maandelijkse verschillen, maar de tracking error is toch een indicatie van de mate waarin de portefeuille afwijkt van de benchmark.
 
 ### Verklaring van het verschil tussen de portefeuille en de benchmark
 
-#### Allocatie en selectie
+#### Asset allocatie en selectie
 
 ```{r attr_RDRM}
 #| column: page
@@ -778,13 +778,14 @@ wt_hist_tickers_in_bm |>
 
 #### Verklaring aandelenselectieresultaat
 
-Hebben de Mag7 een disproportioneel effect gehad op de portefeuille? Het aandelenselectieresultaat is het verschil tussen de gewichten in de portefeuille en die in de benchmark vermenigvuldigd met het verschil in performance van het aandeel en de benchmark. Dit wordt voor elke maand berekend en vervolgens opgeteld. De resultaten zijn in procenten van het RD-deel van de portefeuille.
+Het aandelenselectieresultaat is het verschil tussen de gewichten in de portefeuille en die in de benchmark vermenigvuldigd met het verschil in performance van het aandeel en de benchmark. Als in een aandeel niet is belegd of slechts gedeeltelijk, dan komt er toch een resultaat uit. Dan is het minus het gewicht in de benchmark vermenigvuldigd met het verschil in performance van het aandeel en de benchmark. Als bijv. Meta 2% in de benchmark weegt en 0% in de portefeuille, dan is het selectieresultaat -2% * (performance Meta - performance benchmark). Dit wordt per berekend en vervolgens opgeteld. De resultaten zijn in procenten van het RD-deel van de portefeuille. 
+
 
 ::: panel-tabset
 
 ##### Mag7
 
-De eerste periode voor de Mag7 aandelen is positief, de tweede periode negatief. Over de hele periode dragen Apple en Google positief bij, de overige negatief. Per saldo (zie de tab "Totaal") is het effect van de Mag7 ongeveer neutraal. De Mag7 hebben dus geen disproportioneel effect gehad op de portefeuille. Tussentijds wel een duidelijk, maar niet disproportioneel effect.
+Hebben de Mag7 een disproportioneel effect gehad op de relatieve performance van de portefeuille? De eerste periode voor de Mag7 aandelen is positief, de tweede periode negatief. Over de hele periode dragen Apple en Google positief bij, de overige negatief. Per saldo (zie de tab "Totaal") is het effect van de Mag7 ongeveer neutraal. De Mag7 hebben dus geen disproportioneel effect gehad op de portefeuille. Tussentijds wel een duidelijk, maar niet disproportioneel effect.
 
 ```{r sel_ff_periode1_mag7_bars}
 #| column: page
@@ -921,9 +922,11 @@ sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100", tickers = mag7_tickers)
 
 ##### Andere aandelen
 
-Voor de *Andere aandelen* (niet-MAg7 aandelen waarvoor gegevens beschikbaar zijn) is de eerste periode een mix van positieve en negatieve bijdragen. Per saldo licht positief. In sommige gevallen (bijv. UNH en PFE) draait het positieve resultaat in de tweede periode naar sterk negatief. In IT is de bijdrage in alle gevallen negatief. De tweede periode is sterk negatief. Per saldo (zie de tab "Totaal") is het effect van de *Andere aandelen* sterk negatief.
+De *Andere aandelen* zijn niet-Mag7 aandelen waarvoor gegevens beschikbaar zijn. Het betreft bijna alleen aandelen waarin is belegd in de periode sinds juni 2017. Er zijn een paar aandelen bij die niet in portefeuille zijn geweest, maar waarvan wel gegevens zijn. Dit betreft LLY in Health Care en NFLX in Communication Services. Verder zijn een paar aandelen zijn niet meer beschikbaar: DSM (positieve bijdrage) en RDSA.
 
-Er zijn aandelen bij die niet in portefeuille zijn geweest, maar waarvan wel koersen zijn gedownload. Dit betreft LLY in Health Care en NFLX in Communication Services. Een paar aandelen zijn niet meer beschikbaar: DSM (positieve bijdrage) en RDSA.
+De eerste periode is een mix van positieve en negatieve bijdragen. Per saldo licht positief. In sommige gevallen (bijv. UNH en PFE) draait het positieve resultaat in de tweede periode naar sterk negatief. In IT is de bijdrage in alle gevallen negatief. De tweede periode is als geheel sterk negatief. Per saldo (zie de tab "Totaal") is het effect van de *Andere aandelen* sterk negatief.
+
+
 
 ```{r sel_ff_periode1_en_2_othertotaal_bars2}
 #| column: page
@@ -936,7 +939,7 @@ sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100",  tickers = single_stocks_
 
 ##### Andere ETFs
 
-De small cap ETFs dragen enigszins negatief bij, de regio ETFs enigszins positief. Alleen de Japan ETF heeft een benchmarkgewicht. De bijdragen van de ETFs is relatief gering ten opzichte van veel individuele aandelen.
+De small cap ETFs dragen enigszins negatief bij, de regio ETFs enigszins positief. Alleen de Japan ETF heeft ook een benchmarkgewicht. De bijdragen van de ETFs is relatief gering ten opzichte van veel individuele aandelen.
 
 De ETFs WTCH_NA en XDWH_GY komen hier niet in voor omdat deze via een aantal individuele namen deels tot uitdrukking komen. Het zou leiden tot dubbeltellen.
 
@@ -1038,8 +1041,8 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen. 
 - Goede performance
 - De portefeuille is goed gespreid, met een volatiliteit dicht bij die van de benchmark.
 - Ten opzichte van de benchmark is er sprake van een underperformance
-  - De belangrijkste oorzaak is dat de portefeuille niet steeds vol belegd was (het allocatie-effect)
-  - Daarnaast zorgt de aandelenselectie voor de grootste tussentijdse verschillen.
+  - De belangrijkste oorzaak is dat de portefeuille in de eerste helft van de periode niet steeds vol belegd was (het allocatie-effect)
+  - Daarnaast zorgt de aandelenselectie voor de grootste tussentijdse verschillen en deze is eerst positief en daarna heel sterk negatief.
 - Binnen aandelenselectie
   - De *Mag7* hebben geen disproportioneel effect gehad op de portefeuille.
   - De *Andere ETFs*, naast WTCH en XDWH, (Small Caps, EM en Japan) hebben ook maar een kleine  bijdrage
@@ -1050,7 +1053,7 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen. 
 
 - Als
   - “het bijhouden van de index” behoort tot de doelstellingen van de portefeuille en
-  - je rekening wilt houden met (nog) een "Mag7 scenario",
+  - je rekening wilt houden met (nog) een "Mag7 scenario" en
   - de impact van een individuele aandelenkeuze op de portefeuille (geluk resp. pech) beperkt moet blijven,
 - Dan
   - dan moeten er meer individuele aandelen en/of trackers opgenomen worden of
