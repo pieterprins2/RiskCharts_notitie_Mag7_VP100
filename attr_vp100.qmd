@@ -1,5 +1,5 @@
 ---
-title: "Attributie Individuele aandelen"
+title: "Attributie Individuele Aandelen"
 format: 
   html:
     embed-resources: true  
@@ -142,7 +142,9 @@ outperformance_tekst_VP100 <- outperformance_tekst(portfolio = "VP100")
 
 ```
 
-### Waarde-ontwikkeling modelportefeuille en MSDEWIN
+### Waarde-ontwikkeling, spreiding en tracking error
+
+#### Waarde-ontwikkeling modelportefeuille en MSDEWIN
 
 De VP100 laat een mooie waarde-ontwikkeling zien. Vanaf de start eind juni 2017 t/m juni 2025 een bruto performance van `r perf_portfolio_tekst_VP100`. De performance van de benchmark in die periode is `r perf_BM_tekst_VP100`.
 
@@ -175,9 +177,9 @@ ontwikkeling_portfolio_en_msdewin_grafiek(portfolio = "VP100")
 
 Over de hele periode is sprake van een relatieve performance ("geometrisch" berekend) van `r str_c("(1 + ", perf_portfolio_tekst_VP100, ")/(1 + ", perf_BM_tekst_VP100, ") - 1 = ", outperformance_tekst_VP100)`.
 
-### Voldoende spreiding (lage standaarddeviatie)
+#### Spreiding
 
-Hoeveel individuele aandelen zijn er nodig voor een “goed gespreide portefeuille”? Het antwoord is enkele tientallen. Meer dan dat voegt weinig extra spreiding toe.
+Hoeveel individuele aandelen zijn er nodig voor een “goed gespreide portefeuille”? Het antwoord is enkele tientallen. Meer dan dat voegt weinig extra spreiding toe. Meer spreiding uit zich in een lagere volatiliteit (standaarddeviatie).
 
 In de volgende figuur de volatiliteit (standaarddeviatie) van de portefeuille vs. die van de index.
 ```{r sd_VP100_en_BM}
@@ -239,7 +241,8 @@ sd_pf_RD_vs_MSDEWIN_grafiek(portfolio = "VP100")
 
 Het RD-deel van de portefeuille heeft een volatiliteit dicht bij die van de benchmark. Met plm. 25 individuele aandelen en een aantal sector-, regio- en een small cap ETF’s is de portefeuille dus goed gespreid.
 
-### De index bijhouden (lage tracking error)
+#### Tracking error
+
 In de onderstaande figuur staan de verschillen per maand en de tracking error van de performance van het RD-gedeelte van de portefeuille vs. die van de MSDEWIN.
 
 ```{r verschillen_per_maand}
@@ -279,9 +282,11 @@ verschillen_per_maand_grafiek <- function(portfolio = "VP100") {
 
 verschillen_per_maand_grafiek(portfolio = "VP100")
 ```
-
+De volatiliteit is ongeveer hetzelfde als die van de index, maar de tracking error is desondanks hoog te noemen.
 
 ### Verklaring van het verschil tussen de portefeuille en de benchmark
+
+#### Allocatie en selectie
 
 ```{r attr_RDRM}
 #| column: page
@@ -330,6 +335,7 @@ Het grootste deel van de relatieve performance over de gehele periode is het all
 #| fig-width: 10
 #| fig-height: 3
 #| warning: false
+#| message: false
 
 
 asset_weights_pfs_plot_RM <- function(portfolio = "VP100", start_date = start_date_vp_vf, end_date = snapshot_date) {
@@ -351,7 +357,7 @@ asset_weights_pfs_plot_RM(portfolio = "VP100", start_date = start_date_vp_vf, en
 ```
 De oorzaak hiervan is het gewicht in obligaties en cash in de eerste helft van de periode bij een stijgende aandelenmarkt. Hieronder wordt ingegaan op de rest: het resultaat binnen RD.
 
-### Verklaring van het resulaat RD 
+### Verklaring van het resulaat binnen RD 
 
 #### 1) uit sectorallocatie en aandelenselectie
 
@@ -405,20 +411,20 @@ chart_attr_RD <- function(portfolio = "VP100") {
 chart_attr_RD(portfolio = "VP100")
 ```
 
-De sectorallocatie was in de eerste periode positief en in de tweede periode negatief. De aandelenselectie was in de eerste periode sterk positief, maar in de tweede periode sterk negatief.
+De sectorallocatie was in de eerste periode positief en in de tweede periode negatief. De aandelenselectie was in de eerste periode sterk positief, maar in de tweede periode sterk negatief. De aandelenselectie is dus verreweg de grootste bron van tussentijdse afwijkingen met de benchmark. Maar hieruit wordt niet duidelijk welke aandelen de oorzaak zijn van het aandelenselectieresultaat.
 
 
-#### 2) uit alleen aandelenselectie
+#### 2) uit aandelenselectie per individueel aandeel
 
 Het selectieresultaat aandelen is dus verreweg de grootste bron van tussentijdse afwijkingen met de benchmark. 
 
-Hieronder wordt het verschill in performance tussen het RD-deel van de portefeuille en de benchmark RD verklaard uit alleen de wegingen van individuele aandelen.  Sectorallocatie speelt dus geen rol. Deze aandelen kunnen wel of niet in de portefeuille voorkomen. Van een klein aantal van de aandelen die niet in de portefeuille voorkomen zijn gegevens gedownload. Dit betreffen de Mag7 aandelen voor zover nog niet in portefeuille, LLY in Health Care en Netflix in Communication Services. In totaal zijn er 58 tickers beschikbaar. Verreweg de meeste zijn dus niet beschikbaar.
+Hieronder wordt het verschill in performance tussen het RD-deel van de portefeuille en de benchmark RD verklaard uit alleen de wegingen van individuele aandelen. Sectorallocatie speelt dus geen rol. Deze aandelen kunnen wel of niet in de portefeuille voorkomen. Van een klein aantal van de aandelen die niet in de portefeuille voorkomen zijn gegevens gedownload. Dit betreffen de Mag7 aandelen voor zover nog niet in portefeuille, LLY in Health Care en Netflix in Communication Services. In totaal zijn er 58 tickers beschikbaar. Verreweg de meeste zijn dus niet beschikbaar.
 
 De periode wordt in twee delen geknipt, een van 30 juni 2017 t/m 2022 en een vanaf 2023. De reden hiervoor is dat het selectieresultaat in de eerste periode sterk positief was, maar in de tweede periode sterk negatief.
 
 ##### Mag7
 
-De afgelopen tijd hebben de Mag7 gezorgd voor een groot deel van de waardestijging van de benchmark. Bij een beperkt aantal regels in een individuele-aandelenportefeuille bestaat in zo'n Mag7 scenario een grote kans dat je een of meerdere van deze Mag7 niet hebt. Dan is de portefeuille weliswaar “goed gespreid”, maar je blijft achter bij de index. 
+De afgelopen tijd hebben de Mag7 gezorgd voor een groot deel van de waardestijging van de benchmark. Bij een beperkt aantal regels in een individuele-aandelenportefeuille bestaat in zo'n Mag7 scenario een grote kans dat je een of meerdere van deze Mag7 niet hebt. Dan is de portefeuille weliswaar “goed gespreid”, maar je blijft achter bij de index. De vraag is of de Mag7 een grote rol hebben gespeeld bij de relatieve performance.
 
 Ter illustratie hieronder de performance van Mag7 aandelen en de MSDEWIN in beide periodes.
 
@@ -620,13 +626,13 @@ wt_hist_tickers_in_bm <-
 ```
 
 
-### Gewicht Mag7 in MSDEWIN en in de modelportefeuille
+#### Gewicht Mag7 in MSDEWIN en in de modelportefeuille
 
 Het historische gewicht van aandelen in de MSDEWIN is te benaderen door de huidige market cap van beide te combineren met de historische rendementsontwikkeling. Het historische gewicht van aandelen in een sector-ETF (WTCH_NA en XDWH_GY) is te benaderen door dit te combineren met het historische gewicht van de sector in de MSDEWIN. Het totale gewicht is het gewicht in de naam plus het gewicht in de ETF maal het gewicht van de ETF in de portefeuille.
 
 ::: panel-tabset
 
-##### Mag7 in MSDEWIN
+###### Mag7 in MSDEWIN
 
 ```{r gewicht_mag7_in_bm_historie_grafiek}
 #| column: page
@@ -658,7 +664,7 @@ wt_hist_tickers_in_bm |>
 
 ```
 
-##### Mag7 in RD
+###### Mag7 in RD
 
 Het rechtstreekse gewicht in de naam plus het gewicht via de sector-ETF.
 
@@ -695,7 +701,7 @@ wt_hist_tickers_in_RD_portfolio_chart <- function(portfolio = "VP100", tickers =
 wt_hist_tickers_in_RD_portfolio_chart(portfolio = "VP100")
 ```
 
-##### OU Mag7 in RD
+###### OU Mag7 in RD
 
 Het rechtstreekse gewicht in de naam plus het gewicht via de sector-ETF minus het gewicht in de MSDEWIN. 
 
@@ -737,9 +743,9 @@ OU_wt_hist_tickers_in_RD_portfolio_chart(portfolio = "VP100", tickers = mag7_tic
 
 ```
 
-##### Beschikbare tickers in MSDEWIN
+###### Beschikbare tickers in MSDEWIN
 
-Het totale gewicht in de MSDEWIN van individuele namen die ooit in de portefeuille zijn opgenomen. DSM en RDSA zijn niet meer beschikbaar. Dit betreft zowel het rechtstreekse gewicht in de naam als het gewicht via de sector-ETF.
+Het totale gewicht in de MSDEWIN van individuele namen die ooit in de portefeuille zijn opgenomen. DSM en RDSA zijn niet meer beschikbaar.
 
 ```{r totaal_beschikbaar}
 #| column: page
@@ -760,7 +766,7 @@ wt_hist_tickers_in_bm |>
   scale_fill_identity() +
   #facet_wrap(~ticker, ncol = 1) +
   labs(x = "", y = "",
-       title = "gewicht van beschikbare tickers") +
+       title = "gewicht van beschikbare tickers in MSDEWIN") +
   charts_custom_theme +
   theme_minimal() +
   theme(legend.position = "bottom",
@@ -847,7 +853,7 @@ sel_ff_RD_tabel_periode_tickers_selectie <- function(portfolio = "VP100", start_
            ticker %in% tickers) |> 
     group_by(ticker) |> 
     summarise(sel_ff_periode = sum(sel_ff, na.rm = TRUE)) |> 
-    mutate(periode = periode) |> 
+    mutate(portfolio = portfolio, periode = periode) |> 
     ungroup()
 }
 
@@ -886,10 +892,13 @@ sel_ff_periode1_en_2_totaal_chart <- function(portfolio = "VP100", tickers = mag
                          TRUE ~ "Andere aandelen")
   
   sel_ff_tabel_portfolio_tickers_2periodes(portfolio = portfolio, tickers = tickers) |>
+  #zichtbaar maken of ticker in portefeuille zit
+  left_join(portfolios_tabel_snapshot |> select(ticker, portfolio, shares), by = c("ticker", "portfolio")) |> 
+  mutate(size = ifelse(!is.na(shares), 1, 0)) |> 
   filter(ticker %in% tickers) |>
   mutate(ticker = factor(ticker, levels = rev(ticker_levels))) |> 
-  ggplot(aes(x = ticker, y = sel_ff_periode, alpha = periode, fill = fill)) +
-  geom_col(size = .5, col = "gray40") +
+  ggplot(aes(x = ticker, y = sel_ff_periode, alpha = periode, fill = fill), size = 1) +
+  geom_col(col = "gray40") +
   facet_wrap(~periode, ncol = 3, strip.position = "bottom", scales = "free") +
   coord_flip() +
   scale_fill_identity() +
@@ -912,9 +921,9 @@ sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100", tickers = mag7_tickers)
 
 ##### Andere aandelen
 
-Voor de *Andere aandelen* is de eerste periode een mix van positieve en negatieve bijdragen. Per saldo licht positief. In sommige gevallen (bijv. UNH en PFE) draait het positieve resultaat in de tweede periode naar sterk negatief. In IT is de bijdrage in alle gevallen negatief. De tweede periode is sterk negatief. Per saldo (zie de tab "Totaal") is het effect van de *Andere aandelen* sterk negatief.
+Voor de *Andere aandelen* (niet-MAg7 aandelen waarvoor gegevens beschikbaar zijn) is de eerste periode een mix van positieve en negatieve bijdragen. Per saldo licht positief. In sommige gevallen (bijv. UNH en PFE) draait het positieve resultaat in de tweede periode naar sterk negatief. In IT is de bijdrage in alle gevallen negatief. De tweede periode is sterk negatief. Per saldo (zie de tab "Totaal") is het effect van de *Andere aandelen* sterk negatief.
 
-Er zijn aandelen bij die niet in portefeuille zijn geweest, maar waarvan wel koersen zijn gedownload. Dit betreft LLY in Health Care en NFLX in Communication Services. Een paar aandelen zijn niet meer beschikbaar, zoals DSM (positieve bijdrage) en RDSA.
+Er zijn aandelen bij die niet in portefeuille zijn geweest, maar waarvan wel koersen zijn gedownload. Dit betreft LLY in Health Care en NFLX in Communication Services. Een paar aandelen zijn niet meer beschikbaar: DSM (positieve bijdrage) en RDSA.
 
 ```{r sel_ff_periode1_en_2_othertotaal_bars2}
 #| column: page
@@ -942,7 +951,7 @@ sel_ff_periode1_en_2_totaal_chart(portfolio = "VP100",  tickers = andere_etfs)
 
 ##### Totaal
 
-De bijdrage van de Mag7, de *Andere aandelen* en de *Andere ETFs* samen, minus het totale selectieresultaat in RD geeft een "Overige" categorie. De MSDEWIN bevat 1350 aandelen, waarvan 180 Japanse. De Overige categorie bevat dus enerzijds het gedeelte WTCH_NA (positief) en XDWH_GY (negatief) die niet in de Mag7 en *Andere aandelen* voorkomen, maar ook alle overige ongeveer 1150 aandelen in de index. Dit is dus per saldo positief. De gemiddelde market cap van deze Overige is een stuk kleiner dan het gemiddelde, dus het kan onder andere een market cap effect zijn. Met andere woorden, onderwogen lagere market cap was positief.
+De bijdrage van de Mag7, de *Andere aandelen* en de *Andere ETFs* samen, minus het totale selectieresultaat in RD geeft een *Overige* categorie. De MSDEWIN bevat 1350 aandelen, waarvan 180 Japanse. De *Overige* categorie bevat dus enerzijds het gedeelte WTCH_NA (positief) en XDWH_GY (negatief) die niet in de Mag7 en *Andere aandelen* voorkomen, maar ook alle overige ongeveer 1150 aandelen in de index. Dit is dus per saldo positief. De gemiddelde market cap van deze *Overige* is een stuk kleiner dan het gemiddelde, dus het kan onder andere een market cap effect zijn. Met andere woorden, onderwogen lagere market cap was positief.
 
 Het Totaal is het totale selectieresultaat in RD. Voor de hele periode is dat negatief, maar minder negatief dan het allocatieresultaat op portefeuileniveau.
 
@@ -1033,13 +1042,13 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen.
   - Daarnaast zorgt de aandelenselectie voor de grootste tussentijdse verschillen.
 - Binnen aandelenselectie
   - De *Mag7* hebben geen disproportioneel effect gehad op de portefeuille.
-  - De *Andere ETFs*, naast WTCH en XDWH, hebben ook maar een kleine negatieve bijdrage
+  - De *Andere ETFs*, naast WTCH en XDWH, (Small Caps, EM en Japan) hebben ook maar een kleine  bijdrage
   - Vooral de *Andere aandelen* hebben een negatief effect gehad op de portefeuille
-  - De *Overige* categorie, de overige 1150 aandelen in de MSDEWIN, hebben een positief effect gehad op de portefeuille.
+  - De *Overige* categorie, de overige 1150 aandelen in de MSDEWIN, waarin niet is belegd, hebben een positief effect gehad op de portefeuille.
   
 - Als
   - “het bijhouden van de index” behoort tot de doelstellingen van de portefeuille en
-  - je rekening wilt houden met een "Mag7 scenario",
+  - je rekening wilt houden met (nog) een "Mag7 scenario",
   - de impact van een individuele aandelenkeuze op de portefeuille (geluk resp. pech) beperkt moet blijven,
   - dan moeten er meer individuele aandelen en/of trackers opgenomen worden.
 - Alternatief
