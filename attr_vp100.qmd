@@ -1026,14 +1026,14 @@ sel_ff_periode1_en_2_totaal_categorieen_chart(portfolio = "VP100")
 
 :::
 
-#### Meer individuele aandelen?
+### Meer individuele aandelen noodzakelijk?
 Om in een Mag7 scenario, ervan uitgaande dat je van tevoren niet weet welke die Mag7 zijn, de index bij te houden (een lage tracking error) zul je er niet 15-30 moeten hebben maar eerder honderden. Nieuw artikel, simulatie over een lange periode, universum is ACWI.
 
 ![Bron: "FOMO in equity markets? Concentration risk in (sustainable) investing", Andreas Brøgger, Joren Koëter, and Mathijs van Dijk, June 2025, pagina 37, Panel D](Picture1.png){fig-align="center" width="60%"}
 
-Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen. 
+Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen. Deze research is gemotiveerd door de Mag7 dicussie, maar de Mag7 hebben per saldo dus geen performance nadeel opgeleverd in de portefeuille.
 
-#### Belangrijkste punten
+### Belangrijkste punten
 
 - Goede performance
 - De portefeuille is goed gespreid, met een volatiliteit dicht bij die van de benchmark.
@@ -1050,9 +1050,9 @@ Je ziet de tracking error pas bij enkele honderden aandelen substantieel dalen.
   - “het bijhouden van de index” behoort tot de doelstellingen van de portefeuille en
   - je rekening wilt houden met (nog) een "Mag7 scenario",
   - de impact van een individuele aandelenkeuze op de portefeuille (geluk resp. pech) beperkt moet blijven,
-  - dan moeten er meer individuele aandelen en/of trackers opgenomen worden.
-- Alternatief
-  - Stop loss inbouwen om de impact van individuele aandelen te beperken.
+- Dan
+  - dan moeten er meer individuele aandelen en/of trackers opgenomen worden of
+  - moet een Stop loss ingebouwd worden om de impact van individuele aandelen te beperken.
 
 
 ```{r}
