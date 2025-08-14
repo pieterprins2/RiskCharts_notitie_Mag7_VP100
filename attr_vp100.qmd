@@ -1,6 +1,5 @@
 ---
-title: "Attributie Individuele Aandelen VP"
-subtitle: "Meer individuele aandelen of stop loss regel invoeren"
+title: "VP: meer individuele aandelen of stop loss invoeren?"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 author: "Pieter Prins"
 format: 
